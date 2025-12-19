@@ -1,0 +1,18 @@
+{
+  "name": "masterapp-audio-metrics",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5174",
+    "build": "vite build",
+    "preview": "vite preview --port 5174",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  },
+  "dependencies": {
+    "essentia.js": "^0.1.3"
+  }
+}
