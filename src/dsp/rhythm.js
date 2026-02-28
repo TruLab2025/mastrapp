@@ -82,8 +82,13 @@ export function analyzeRhythmFromOnsets(onsetTimesSec, options = {}) {
   const maxCount = Math.max(...counts, 0);
   const tempoConfidence = total > 0 ? maxCount / total : 0;
 
+  const meanBpm = bpmStats.mean ?? (ibiMedian ? 60 / ibiMedian : null);
+  // Robustness filter: if meanBpm is extreme (e.g. > 220), try halving it (double-time detection)
+  let tempoBpm = meanBpm;
+  if (tempoBpm > 220) tempoBpm /= 2;
+
   return {
-    tempoBpm: bpmStats.mean ?? (ibiMedian ? 60 / ibiMedian : null),
+    tempoBpm: tempoBpm,
     tempoStd: bpmStats.std,
     ibiMedian,
     ibiStd: ibiStats.std,

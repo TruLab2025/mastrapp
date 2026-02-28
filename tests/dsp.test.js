@@ -222,14 +222,14 @@ test('analyzeMeydaFeatures computes chroma mean for a sine tone', () => {
 
   const out = analyzeMeydaFeatures(left, right, fs, { frameSize: 1024, hopSize: 512 });
   assert.ok(out);
-  assert.ok(Array.isArray(out.chromaMean) && out.chromaMean.length === 12);
+  assert.ok(out.chroma && Array.isArray(out.chroma.mean) && out.chroma.mean.length === 12);
   assert.ok(out.frames > 0);
   // additional features should be present if computed
-  assert.ok(Array.isArray(out.mfccMean));
-  assert.ok(out.mfccMean.length >= 1);
-  assert.ok(typeof out.zcrMean === 'number' || out.zcrMean === null);
+  assert.ok(out.mfcc && Array.isArray(out.mfcc.mean));
+  assert.ok(out.mfcc.mean.length >= 1);
+  assert.ok(out.zcr && (typeof out.zcr.mean === 'number' || out.zcr.mean === null));
 });
- 
+
 
 test('psycho pack: high-frequency energy increases sharpness and sibilance', () => {
   const fs = 48000;
@@ -257,58 +257,58 @@ test('psycho pack: high-frequency energy increases sharpness and sibilance', () 
 test('spectralSlope computes brightness metric', async () => {
   const { spectralSlope } = await import('../src/dsp/spectral-advanced.js');
   const fs = 48000;
-  
+
   // Create a spectrum with low-frequency emphasis (dark)
   const darkMag = new Float32Array(1024);
   for (let i = 0; i < 512; i++) {
     darkMag[i] = 100 / (i + 1); // 1/f decay
   }
-  
+
   // Create a spectrum with high-frequency emphasis (bright)
   const brightMag = new Float32Array(1024);
   for (let i = 0; i < 512; i++) {
     brightMag[i] = (i + 1) / 100;
   }
-  
+
   const slopeDark = spectralSlope(darkMag, fs);
   const slopeBright = spectralSlope(brightMag, fs);
-  
+
   assert.ok(slopeDark < slopeBright, 'dark spectrum should have lower slope');
 });
 
 test('spectralEntropy measures spectral complexity', async () => {
   const { spectralEntropy } = await import('../src/dsp/spectral-advanced.js');
-  
+
   // Pure tone: low entropy
   const toneMag = new Float32Array(1024).fill(0);
   toneMag[100] = 10; // single peak
-  
+
   // Noise: high entropy
   const noiseMag = new Float32Array(1024);
   for (let i = 0; i < noiseMag.length; i++) {
     noiseMag[i] = Math.random();
   }
-  
+
   const entropyTone = spectralEntropy(toneMag);
   const entropyNoise = spectralEntropy(noiseMag);
-  
+
   assert.ok(entropyTone < entropyNoise, 'tone should have lower entropy than noise');
 });
 
 test('rhythmicStability computes from onsets', async () => {
   const { analyzeRhythmicStability } = await import('../src/dsp/rhythmic-stability.js');
-  
+
   // Regular onsets (120 BPM = 0.5s per beat)
   const regularOnsets = [0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0];
   const stab = analyzeRhythmicStability(regularOnsets, 120);
-  
+
   assert.ok(stab.stability > 0.8, 'regular onsets should have high stability');
   assert.ok(stab.tightness > 0.8, 'regular onsets should be tight');
 });
 
 test('chordDensity from chroma', async () => {
   const { analyzeChordDensity } = await import('../src/dsp/chord-density.js');
-  
+
   // Simulate chroma frames (12-bin vectors)
   const chromaFrames = [];
   for (let i = 0; i < 100; i++) {
@@ -316,9 +316,9 @@ test('chordDensity from chroma', async () => {
     chroma[i % 12] = 1; // rotating emphasis
     chromaFrames.push(chroma);
   }
-  
+
   const density = analyzeChordDensity(chromaFrames, 0.02);
-  
+
   assert.ok(typeof density.chord_changes_per_minute === 'number');
   assert.ok(density.chord_changes_per_minute >= 0);
 });
@@ -341,40 +341,40 @@ test('lowMidBuildup detects energy in 150-350 Hz band', async () => {
   assert.ok(res.fraction > 0.9 || res.percent > 90);
 });
 
-  test('lowMidOverTime returns time-series', async () => {
-    const { lowMidOverTime } = await import('../src/dsp/spectral-advanced.js');
-    const fs = 48000;
-    // create 1 second sine at 200 Hz (within 150-350)
-    const n = fs * 1;
-    const buf = new Float32Array(n);
-    for (let i = 0; i < n; i++) buf[i] = Math.sin((2 * Math.PI * 200 * i) / fs);
-    const series = lowMidOverTime(buf, fs, { frameSize: 1024, hopSize: 512 });
-    assert.ok(Array.isArray(series));
-    assert.ok(series.length > 0);
-    assert.ok(series[0].fraction > 0);
-  });
+test('lowMidOverTime returns time-series', async () => {
+  const { lowMidOverTime } = await import('../src/dsp/spectral-advanced.js');
+  const fs = 48000;
+  // create 1 second sine at 200 Hz (within 150-350)
+  const n = fs * 1;
+  const buf = new Float32Array(n);
+  for (let i = 0; i < n; i++) buf[i] = Math.sin((2 * Math.PI * 200 * i) / fs);
+  const series = lowMidOverTime(buf, fs, { frameSize: 1024, hopSize: 512 });
+  assert.ok(Array.isArray(series));
+  assert.ok(series.length > 0);
+  assert.ok(series[0].fraction > 0);
+});
 
-  test('transient sharpness computes non-zero for percussive onset', async () => {
-    const { transientSharpnessFromOnsets } = await import('../src/dsp/transient-sharpness.js');
-    const fs = 48000;
-    const n = fs * 1;
-    const buf = new Float32Array(n);
-    // create impulse at 0.1s
-    buf[Math.floor(0.1 * fs)] = 1.0;
-    const out = transientSharpnessFromOnsets(buf, fs, [0.1], { frameSize: 2048 });
-    assert.ok(out.frames.length === 1);
-    assert.ok(typeof out.meanSharpness === 'number');
-  });
+test('transient sharpness computes non-zero for percussive onset', async () => {
+  const { transientSharpnessFromOnsets } = await import('../src/dsp/transient-sharpness.js');
+  const fs = 48000;
+  const n = fs * 1;
+  const buf = new Float32Array(n);
+  // create impulse at 0.1s
+  buf[Math.floor(0.1 * fs)] = 1.0;
+  const out = transientSharpnessFromOnsets(buf, fs, [0.1], { frameSize: 2048 });
+  assert.ok(out.frames.length === 1);
+  assert.ok(typeof out.meanSharpness === 'number');
+});
 
-  test('section detection finds sections in synthetic loudness', async () => {
-    const { detectSectionsFromLoudness } = await import('../src/dsp/sections.js');
-    const frames = [];
-    for (let i = 0; i < 100; i++) {
-      const t = i * 0.1;
-      const l = i < 50 ? -20 : -12; // change at halfway
-      frames.push({ tSec: t, lufsShortTerm: l });
-    }
-    const secs = detectSectionsFromLoudness(frames, { deltaLufs: 3.0 });
-    assert.ok(Array.isArray(secs));
-    assert.ok(secs.length >= 2);
-  });
+test('section detection finds sections in synthetic loudness', async () => {
+  const { detectSectionsFromLoudness } = await import('../src/dsp/sections.js');
+  const frames = [];
+  for (let i = 0; i < 100; i++) {
+    const t = i * 0.1;
+    const l = i < 50 ? -20 : -12; // change at halfway
+    frames.push({ tSec: t, lufsShortTerm: l });
+  }
+  const secs = detectSectionsFromLoudness(frames, { deltaLufs: 3.0 });
+  assert.ok(Array.isArray(secs));
+  assert.ok(secs.length >= 2);
+});

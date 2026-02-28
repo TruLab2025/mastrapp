@@ -1,4 +1,5 @@
 import Meyda from 'meyda';
+import { computeStats, applyHannWindow } from './utils.js';
 
 /**
  * Round a number to the nearest power of 2.
@@ -48,6 +49,7 @@ export function analyzeMeydaFeatures(left, right, sampleRate, options = {}) {
     for (let j = 0; j < frameSize; j++) {
       mono[j] = 0.5 * (left[i + j] + right[i + j]);
     }
+    applyHannWindow(mono);
     // Use Meyda.extract with mono frame and feature list
     let feats = null;
     try {
@@ -81,16 +83,10 @@ export function analyzeMeydaFeatures(left, right, sampleRate, options = {}) {
     }
   }
 
-  const result = { frames: count, timeSeries };
+  const result = { frames: count };
   if (count > 0) {
     for (const f of featsList) {
-      if (Array.isArray(accum[f])) {
-        result[f + 'Mean'] = accum[f].map((v) => v / count);
-      } else if (typeof accum[f] === 'number') {
-        result[f + 'Mean'] = accum[f] / count;
-      } else {
-        result[f + 'Mean'] = null;
-      }
+      result[f] = computeStats(timeSeries[f]);
     }
   }
   return result;
