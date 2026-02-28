@@ -83,7 +83,7 @@ export function chromaComplexity(chroma) {
 export function analyzeChordDensity(chromaFrames, hopTime = 0.02) {
   // Handle both Meyda output format and direct frame array
   let frames = [];
-  
+
   if (Array.isArray(chromaFrames)) {
     frames = chromaFrames;
   } else if (chromaFrames.timeSeries && Array.isArray(chromaFrames.timeSeries.chroma)) {
@@ -100,7 +100,7 @@ export function analyzeChordDensity(chromaFrames, hopTime = 0.02) {
     };
   }
 
-  const changes = detectChordChanges(frames, 0.25);
+  const changes = detectChordChanges(frames, 0.15);
   const complexities = frames.map((f, idx) => ({
     idx,
     tSec: idx * hopTime,

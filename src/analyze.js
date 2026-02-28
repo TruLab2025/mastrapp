@@ -122,7 +122,9 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
         const left = audioBuffer.getChannelData(0);
         const right = audioBuffer.getChannelData(1);
         const sampleRate = audioBuffer.sampleRate;
-        const frameSize = Math.max(128, Math.round((options.frameMs / 1000) * sampleRate));
+        const requestedSamples = (options.frameMs / 1000) * sampleRate;
+        // Force to nearest power of two (Radix-2 FFT requirement)
+        const frameSize = Math.pow(2, Math.round(Math.log2(Math.max(128, requestedSamples))));
         const hopSize = Math.max(64, Math.round((options.hopMs / 1000) * sampleRate));
         const meyda = analyzeMeydaFeatures(left, right, sampleRate, { frameSize, hopSize });
         res.global = res.global || {};
@@ -150,9 +152,10 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
   const left = audioBuffer.getChannelData(0);
   const right = audioBuffer.getChannelData(1);
 
-  const frameSize = Math.max(128, Math.round((options.frameMs / 1000) * sampleRate));
+  const requestedSamples = (options.frameMs / 1000) * sampleRate;
+  const frameSize = Math.pow(2, Math.round(Math.log2(Math.max(128, requestedSamples))));
   const hopSize = Math.max(64, Math.round((options.hopMs / 1000) * sampleRate));
-  const fftSize = nextPow2(frameSize);
+  const fftSize = frameSize; // Now always equal
 
   options.onProgress?.({ stage: 'Start', detail: `${channels}ch @ ${sampleRate} Hz` });
 
@@ -224,23 +227,38 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
     for (let i = 0; i < left.length; i++) {
       monoMix[i] = 0.5 * (left[i] + right[i]);
     }
-    // Compute per-frame spectral features from the first frame for summary
-    const fftFrame = new Float32Array(fftSize);
-    for (let i = 0; i < Math.min(frameSize, monoMix.length); i++) {
-      fftFrame[i] = monoMix[i];
+    // Compute mean spectral features over the 2s monoMix to avoid initial silence
+    let slopeSum = 0, entropySum = 0, bandSum = 0, totalSum = 0, count = 0;
+    const crestAgg = { low: 0, mid: 0, high: 0 };
+    for (let i = 0; i + frameSize <= monoMix.length; i += frameSize) {
+      const fftFrame = new Float32Array(fftSize);
+      fftFrame.set(monoMix.subarray(i, i + frameSize), 0);
+      applyHannWindow(fftFrame);
+      const { re, im } = fftReal(fftFrame);
+      const magnitude = magSpectrum(re, im);
+
+      slopeSum += spectralSlope(magnitude, sampleRate);
+      entropySum += spectralEntropy(magnitude);
+      const c = crestFactorPerBand(magnitude, sampleRate);
+      crestAgg.low += (c.low || 0);
+      crestAgg.mid += (c.mid || 0);
+      crestAgg.high += (c.high || 0);
+      const lm = lowMidBuildup(magnitude, sampleRate);
+      bandSum += lm.bandEnergy;
+      totalSum += lm.totalEnergy;
+      count++;
     }
-    // Apply Hann window on frameSize only
-    for (let i = 0; i < frameSize; i++) {
-      const w = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (frameSize - 1)));
-      fftFrame[i] *= w;
+    if (count > 0) {
+      const frac = totalSum > 0 ? bandSum / totalSum : 0;
+      spectralAdv = {
+        slope: slopeSum / count,
+        entropy: entropySum / count,
+        crestPerBand: { low: crestAgg.low / count, mid: crestAgg.mid / count, high: crestAgg.high / count },
+        lowMid: { bandEnergy: bandSum / count, totalEnergy: totalSum / count, fraction: frac, percent: frac * 100 }
+      };
+    } else {
+      spectralAdv = { slope: 0, entropy: 0, crestPerBand: { low: 0, mid: 0, high: 0 }, lowMid: { fraction: 0, percent: 0 } };
     }
-    const { re, im } = fftReal(fftFrame);
-    const magnitude = magSpectrum(re, im);
-    const slope = spectralSlope(magnitude, sampleRate);
-    const entropy = spectralEntropy(magnitude);
-    const crestPerBand = crestFactorPerBand(magnitude, sampleRate);
-    const lowMid = lowMidBuildup(magnitude, sampleRate);
-    spectralAdv = { slope, entropy, crestPerBand, lowMid };
   } catch (e) {
     spectralAdv = { error: String(e) };
   }

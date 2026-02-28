@@ -26,7 +26,7 @@ export function detectOnsetsFromBandFlux(spectrumFrames) {
   const med = median(flux);
   const avg = mean(flux);
   // Threshold: above median + (avg-median) * 1.5, clamped
-  const thr = clamp(med + (avg - med) * 1.5, med, med + 10);
+  const thr = clamp(med + (avg - med) * 1.2, med, med + 10);
 
   /** @type {number[]} */
   const onsetsSec = [];
