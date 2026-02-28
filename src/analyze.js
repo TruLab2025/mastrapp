@@ -114,27 +114,22 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
   if (essentiaBundle) {
     options.onProgress?.({ stage: 'Backend', detail: 'Essentia' });
     // Run Essentia analysis, then also compute Meyda features and merge them
-    // into the returned JSON so the final report contains both backends.
     const res = await analyzeWithEssentia(essentiaBundle, audioBuffer, options);
     try {
-      // Meyda needs channel Float32Array and sampleRate
       if (audioBuffer.numberOfChannels >= 2) {
         const left = audioBuffer.getChannelData(0);
         const right = audioBuffer.getChannelData(1);
         const sampleRate = audioBuffer.sampleRate;
         const requestedSamples = (options.frameMs / 1000) * sampleRate;
-        // Force to nearest power of two (Radix-2 FFT requirement)
-        const frameSize = Math.pow(2, Math.round(Math.log2(Math.max(128, requestedSamples))));
+        const frameSize = nextPow2(Math.round(requestedSamples));
         const hopSize = Math.max(64, Math.round((options.hopMs / 1000) * sampleRate));
         const meyda = analyzeMeydaFeatures(left, right, sampleRate, { frameSize, hopSize });
         res.global = res.global || {};
-        // Attach or merge under res.global.meyda
         res.global.meyda = Object.assign({}, res.global.meyda || {}, meyda || null);
         res.timeSeries = res.timeSeries || {};
         res.timeSeries.meyda = meyda || null;
-      } else {
-        res.global = res.global || {};
-        res.global.meyda = { error: 'Not enough channels for Meyda (requires stereo)' };
+        // Fix meta reporting if it came back with non-pow2
+        if (res.meta) res.meta.frameSize = frameSize;
       }
     } catch (e) {
       res.global = res.global || {};
@@ -151,11 +146,13 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
 
   const left = audioBuffer.getChannelData(0);
   const right = audioBuffer.getChannelData(1);
+  const monoMix = new Float32Array(left.length);
+  for (let i = 0; i < left.length; i++) monoMix[i] = 0.5 * (left[i] + right[i]);
 
   const requestedSamples = (options.frameMs / 1000) * sampleRate;
-  const frameSize = Math.pow(2, Math.round(Math.log2(Math.max(128, requestedSamples))));
+  const frameSize = nextPow2(Math.round(requestedSamples));
   const hopSize = Math.max(64, Math.round((options.hopMs / 1000) * sampleRate));
-  const fftSize = frameSize; // Now always equal
+  const fftSize = frameSize;
 
   options.onProgress?.({ stage: 'Start', detail: `${channels}ch @ ${sampleRate} Hz` });
 
@@ -223,10 +220,6 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
   options.onProgress?.({ stage: 'Spectral Advanced' });
   let spectralAdv = null;
   try {
-    const monoMix = new Float32Array(left.length);
-    for (let i = 0; i < left.length; i++) {
-      monoMix[i] = 0.5 * (left[i] + right[i]);
-    }
     // Compute mean spectral features over the 2s monoMix to avoid initial silence
     let slopeSum = 0, entropySum = 0, bandSum = 0, totalSum = 0, count = 0;
     const crestAgg = { low: 0, mid: 0, high: 0 };
@@ -267,10 +260,6 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
   options.onProgress?.({ stage: 'HPSS' });
   let hpss = null;
   try {
-    const monoMix = new Float32Array(left.length);
-    for (let i = 0; i < left.length; i++) {
-      monoMix[i] = 0.5 * (left[i] + right[i]);
-    }
     hpss = analyzeHarmonicPercussive(monoMix, sampleRate, { frameSize, hopSize });
   } catch (e) {
     hpss = { error: String(e) };
@@ -280,8 +269,8 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
   options.onProgress?.({ stage: 'Chord Density' });
   let chordDensity = null;
   try {
-    if (meyda && !meyda.error) {
-      chordDensity = analyzeChordDensity(meyda, hopSize / sampleRate);
+    if (meyda && meyda.timeSeries && Array.isArray(meyda.timeSeries.chroma)) {
+      chordDensity = analyzeChordDensity(meyda.timeSeries.chroma, hopSize / sampleRate);
     } else {
       chordDensity = { chord_changes_per_minute: 0, mean_complexity: 0, chord_changes: [] };
     }
@@ -293,12 +282,9 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
   options.onProgress?.({ stage: 'Rhythmic Stability' });
   let rhythmicStab = null;
   try {
-    if (rhythm && rhythm.onsets && Array.isArray(rhythm.onsets)) {
-      const onsetTimes = rhythm.onsets.map(o => (typeof o === 'number' ? o : o.tSec || 0));
-      rhythmicStab = analyzeRhythmicStability(onsetTimes, rhythm.estimatedBpm || 120);
-    } else {
-      rhythmicStab = { stability: 0, tightness: 0, ioi_mean_ms: 0, ioi_cv: 0, onset_count: 0 };
-    }
+    const onsetTimes = onsets.onsetsSec || [];
+    const estimatedBpm = rhythm?.tempoBpm || 120;
+    rhythmicStab = analyzeRhythmicStability(onsetTimes, estimatedBpm);
   } catch (e) {
     rhythmicStab = { error: String(e) };
   }
@@ -378,8 +364,6 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
   // Low-mid time series (per-frame)
   let lowMidSeries = null;
   try {
-    const monoMix = new Float32Array(left.length);
-    for (let i = 0; i < left.length; i++) monoMix[i] = 0.5 * (left[i] + right[i]);
     lowMidSeries = lowMidOverTime(monoMix, sampleRate, { frameSize, hopSize, fftSize });
   } catch (e) {
     lowMidSeries = { error: String(e) };
@@ -389,8 +373,6 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
   let transientSharp = null;
   try {
     const onsetTimes = onsets.onsetsSec ?? [];
-    const monoMix = new Float32Array(left.length);
-    for (let i = 0; i < left.length; i++) monoMix[i] = 0.5 * (left[i] + right[i]);
     transientSharp = transientSharpnessFromOnsets(monoMix, sampleRate, onsetTimes, { frameSize, fftSize });
   } catch (e) {
     transientSharp = { error: String(e) };

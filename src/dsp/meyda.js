@@ -39,6 +39,8 @@ export function analyzeMeydaFeatures(left, right, sampleRate, options = {}) {
   const featsList = options.features || ['chroma', 'mfcc', 'zcr'];
 
   const accum = {}; // feature -> accumulator (array or number)
+  const timeSeries = {}; // feature -> array of values per frame
+  for (const f of featsList) timeSeries[f] = [];
   let count = 0;
 
   for (let i = 0; i + frameSize <= len; i += hopSize) {
@@ -47,29 +49,26 @@ export function analyzeMeydaFeatures(left, right, sampleRate, options = {}) {
       mono[j] = 0.5 * (left[i + j] + right[i + j]);
     }
     // Use Meyda.extract with mono frame and feature list
-    // In Node.js (Meyda 5.6.3), extract() expects: (features, bufferArray, options)
     let feats = null;
     try {
       feats = Meyda.extract(featsList, mono, { sampleRate });
     } catch (err) {
-      // Fallback: try with createMeydaAnalyzer if available
+      // Fallback
       try {
         if (typeof Meyda.createMeydaAnalyzer === 'function') {
           const analyzer = Meyda.createMeydaAnalyzer({ source: mono, bufferSize: frameSize, sampleRate, featureExtractors: featsList });
           feats = analyzer.get();
-        } else {
-          console.warn('Meyda extract/analyzer error:', err);
-          continue;
         }
-      } catch (errFallback) {
-        console.warn('Meyda fallback error:', errFallback);
-        continue;
-      }
+      } catch (e) { /* ignore */ }
     }
     if (!feats) continue;
     count++;
     for (const f of featsList) {
       const val = feats[f];
+      // Save to timeSeries
+      if (Array.isArray(val)) timeSeries[f].push([...val]);
+      else timeSeries[f].push(val);
+
       if (Array.isArray(val)) {
         if (!accum[f]) accum[f] = new Array(val.length).fill(0);
         for (let k = 0; k < val.length; k++) {
@@ -82,7 +81,7 @@ export function analyzeMeydaFeatures(left, right, sampleRate, options = {}) {
     }
   }
 
-  const result = { frames: count };
+  const result = { frames: count, timeSeries };
   if (count > 0) {
     for (const f of featsList) {
       if (Array.isArray(accum[f])) {
