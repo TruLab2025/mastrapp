@@ -83,3 +83,49 @@ export function applyHannWindow(buffer) {
     buffer[i] *= w;
   }
 }
+
+/**
+ * Recursively clean an object for JSON serialization.
+ * - Rounds numbers to 4 decimal places.
+ * - Handles nested objects and arrays.
+ * - Removes non-serializable fields (functions, etc).
+ * @param {any} obj
+ * @returns {any}
+ */
+export function cleanObjectForJson(obj) {
+  if (obj === null || obj === undefined) return obj;
+
+  if (typeof obj === 'number') {
+    if (!Number.isFinite(obj)) return null;
+    // Round to 4 decimal places to save space
+    return Math.round(obj * 10000) / 10000;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(cleanObjectForJson);
+  }
+
+  if (typeof obj === 'object') {
+    // Handle TypedArrays (common in DSP)
+    if (obj instanceof Float32Array || obj instanceof Float64Array) {
+      const arr = new Array(obj.length);
+      for (let i = 0; i < obj.length; i++) {
+        const v = obj[i];
+        arr[i] = Math.round(v * 10000) / 10000;
+      }
+      return arr;
+    }
+
+    const cleaned = {};
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        const val = obj[key];
+        if (typeof val === 'function' || typeof val === 'symbol') continue;
+        cleaned[key] = cleanObjectForJson(val);
+      }
+    }
+    return cleaned;
+  }
+
+  return obj;
+}

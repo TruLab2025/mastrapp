@@ -1,7 +1,7 @@
 import { analyzeSpectrumOverTime } from './dsp/spectrum.js';
 import { analyzeLoudnessOverTime } from './dsp/loudness.js';
 import { detectOnsetsFromBandFlux, computeOnsetStrengthFromSpectrumFrames } from './dsp/onsets.js';
-import { dbfsFromLinear, rmsOfInterleavedStereo, stddevOfFrames, nextPow2 } from './dsp/utils.js';
+import { dbfsFromLinear, rmsOfInterleavedStereo, stddevOfFrames, nextPow2, cleanObjectForJson } from './dsp/utils.js';
 import { analyzeTruePeakAndClipping } from './dsp/truepeak.js';
 import { loadEssentia } from './essentia/loader.js';
 import { analyzeWithEssentia } from './essentia/analyze-essentia.js';
@@ -386,7 +386,7 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
     sections = { error: String(e) };
   }
 
-  return {
+  return cleanObjectForJson({
     meta: {
       analyzedAt: new Date().toISOString(),
       sampleRate,
@@ -482,6 +482,6 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
       spectralAdvanced: spectralAdv,
       hpss,
     },
-  };
+  });
 }
 
