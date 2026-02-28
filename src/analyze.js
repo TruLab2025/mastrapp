@@ -1,7 +1,7 @@
 import { analyzeSpectrumOverTime } from './dsp/spectrum.js';
 import { analyzeLoudnessOverTime } from './dsp/loudness.js';
 import { detectOnsetsFromBandFlux, computeOnsetStrengthFromSpectrumFrames } from './dsp/onsets.js';
-import { dbfsFromLinear, rmsOfInterleavedStereo, stddevOfFrames } from './dsp/utils.js';
+import { dbfsFromLinear, rmsOfInterleavedStereo, stddevOfFrames, nextPow2 } from './dsp/utils.js';
 import { analyzeTruePeakAndClipping } from './dsp/truepeak.js';
 import { loadEssentia } from './essentia/loader.js';
 import { analyzeWithEssentia } from './essentia/analyze-essentia.js';
