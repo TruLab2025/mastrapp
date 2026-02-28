@@ -7,6 +7,7 @@ import { spectralFeatures } from '../src/dsp/spectrum.js';
 import { computeOnsetStrengthFromSpectrumFrames } from '../src/dsp/onsets.js';
 import { analyzeLoudnessOverTime, computeLraFromShortTermFrames } from '../src/dsp/loudness.js';
 import { analyzeTruePeakAndClipping } from '../src/dsp/truepeak.js';
+import { analyzeMeydaFeatures } from '../src/dsp/meyda.js';
 import { createPsychoContext } from '../src/dsp/psycho.js';
 
 test('nextPow2', () => {
@@ -203,6 +204,32 @@ test('analyzeTruePeakAndClipping reports peaks and clipping', async () => {
     assert.ok((out.rumble.hotspots[i - 1].rumbleRmsDbfs ?? -Infinity) >= (out.rumble.hotspots[i].rumbleRmsDbfs ?? -Infinity));
   }
 });
+
+// simple smoke‑test for Meyda integration
+
+// note: we already imported analyzeMeydaFeatures above
+
+test('analyzeMeydaFeatures computes chroma mean for a sine tone', () => {
+  const fs = 8000;
+  const dur = 1;
+  const n = fs * dur;
+  const left = new Float32Array(n);
+  const right = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const v = Math.sin((2 * Math.PI * 440 * i) / fs);
+    left[i] = right[i] = v;
+  }
+
+  const out = analyzeMeydaFeatures(left, right, fs, { frameSize: 1024, hopSize: 512 });
+  assert.ok(out);
+  assert.ok(Array.isArray(out.chromaMean) && out.chromaMean.length === 12);
+  assert.ok(out.frames > 0);
+  // additional features should be present if computed
+  assert.ok(Array.isArray(out.mfccMean));
+  assert.ok(out.mfccMean.length >= 1);
+  assert.ok(typeof out.zcrMean === 'number' || out.zcrMean === null);
+});
+ 
 
 test('psycho pack: high-frequency energy increases sharpness and sibilance', () => {
   const fs = 48000;

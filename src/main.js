@@ -293,7 +293,7 @@ downloadA.addEventListener('click', () => {
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
   const out = makeUploadFriendlyResult(fullA);
   downloadJson(out, `${base}.upload-metrics.${ts}.json`);
-  setStatus('Pobrano ORG (kompakt).');
+  setStatus('Pobrano Oryginał (kompakt).');
 });
 
 downloadB.addEventListener('click', () => {
@@ -302,7 +302,7 @@ downloadB.addEventListener('click', () => {
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
   const out = makeUploadFriendlyResult(fullB);
   downloadJson(out, `${base}.upload-metrics.${ts}.json`);
-  setStatus('Pobrano REF (kompakt).');
+  setStatus('Pobrano Referencję (kompakt).');
 });
 
 downloadCompare.addEventListener('click', () => {
@@ -312,7 +312,7 @@ downloadCompare.addEventListener('click', () => {
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
   const out = makeUploadFriendlyResult(fullCompare);
   downloadJson(out, `${baseA}_vs_${baseB}.comparison.upload.${ts}.json`);
-  setStatus('Pobrano POR (kompakt).');
+  setStatus('Pobrano Porównanie (kompakt).');
 });
 
 downloadAUpload?.addEventListener('click', () => {
@@ -320,7 +320,7 @@ downloadAUpload?.addEventListener('click', () => {
   const base = fileA?.name ? fileA.name.replace(/\.[^.]+$/, '') : 'trackA';
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
   downloadJson(fullA, `${base}.metrics.full.${ts}.json`);
-  setStatus('Pobrano ORG (RAW FULL — duże).');
+  setStatus('Pobrano Oryginał (RAW FULL — duże).');
 });
 
 downloadBUpload?.addEventListener('click', () => {
@@ -328,7 +328,7 @@ downloadBUpload?.addEventListener('click', () => {
   const base = fileB?.name ? fileB.name.replace(/\.[^.]+$/, '') : 'reference';
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
   downloadJson(fullB, `${base}.metrics.full.${ts}.json`);
-  setStatus('Pobrano REF (RAW FULL — duże).');
+  setStatus('Pobrano Referencję (RAW FULL — duże).');
 });
 
 downloadCompareUpload?.addEventListener('click', () => {
@@ -337,7 +337,7 @@ downloadCompareUpload?.addEventListener('click', () => {
   const baseB = fileB?.name ? fileB.name.replace(/\.[^.]+$/, '') : 'REF';
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
   downloadJson(fullCompare, `${baseA}_vs_${baseB}.comparison.full.${ts}.json`);
-  setStatus('Pobrano POR (RAW FULL — duże).');
+  setStatus('Pobrano Porównanie (RAW FULL — duże).');
 });
 
 resetBtn?.addEventListener('click', resetAll);

@@ -7,6 +7,7 @@ import { loadEssentia } from './essentia/loader.js';
 import { analyzeWithEssentia } from './essentia/analyze-essentia.js';
 import { analyzeRhythmFromOnsets } from './dsp/rhythm.js';
 import { analyzeSmiFromBandNormalized } from './dsp/smi.js';
+import { analyzeMeydaFeatures } from './dsp/meyda.js';
 
 function meanOfFrames(frames, field) {
   if (!Array.isArray(frames) || frames.length === 0) return null;
@@ -104,7 +105,32 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
   const essentiaBundle = await loadEssentia();
   if (essentiaBundle) {
     options.onProgress?.({ stage: 'Backend', detail: 'Essentia' });
-    return analyzeWithEssentia(essentiaBundle, audioBuffer, options);
+    // Run Essentia analysis, then also compute Meyda features and merge them
+    // into the returned JSON so the final report contains both backends.
+    const res = await analyzeWithEssentia(essentiaBundle, audioBuffer, options);
+    try {
+      // Meyda needs channel Float32Array and sampleRate
+      if (audioBuffer.numberOfChannels >= 2) {
+        const left = audioBuffer.getChannelData(0);
+        const right = audioBuffer.getChannelData(1);
+        const sampleRate = audioBuffer.sampleRate;
+        const frameSize = Math.max(128, Math.round((options.frameMs / 1000) * sampleRate));
+        const hopSize = Math.max(64, Math.round((options.hopMs / 1000) * sampleRate));
+        const meyda = analyzeMeydaFeatures(left, right, sampleRate, { frameSize, hopSize });
+        res.global = res.global || {};
+        // Attach or merge under res.global.meyda
+        res.global.meyda = Object.assign({}, res.global.meyda || {}, meyda || null);
+        res.timeSeries = res.timeSeries || {};
+        res.timeSeries.meyda = meyda || null;
+      } else {
+        res.global = res.global || {};
+        res.global.meyda = { error: 'Not enough channels for Meyda (requires stereo)' };
+      }
+    } catch (e) {
+      res.global = res.global || {};
+      res.global.meyda = { error: String(e) };
+    }
+    return res;
   }
 
   const sampleRate = audioBuffer.sampleRate;
@@ -170,6 +196,15 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
     smi = analyzeSmiFromBandNormalized(spectrum.frames, { threshold: 0.5 });
   } catch (e) {
     smi = { error: String(e) };
+  }
+
+  // Meyda features (optional library).  Mix to mono and compute chroma.
+  options.onProgress?.({ stage: 'Meyda' });
+  let meyda = null;
+  try {
+    meyda = analyzeMeydaFeatures(left, right, sampleRate, { frameSize, hopSize });
+  } catch (e) {
+    meyda = { error: String(e) };
   }
 
   // Loudness curve
@@ -302,6 +337,8 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
         onsetBandShares,
       },
       rhythm: rhythm?.tempoBpm ? { tempoBpm: rhythm.tempoBpm, tempoStd: rhythm.tempoStd, tempoConfidence: rhythm.tempoConfidence } : (rhythm || null),
+      // expose entire meyda summary (may contain multiple mean vectors)
+      meyda: meyda && typeof meyda === 'object' ? meyda : null,
       smi: smi?.stats ? { mean: smi.stats.mean, std: smi.stats.std } : (smi || null),
     },
     timeSeries: {
@@ -319,6 +356,7 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
       onsetStrengthMeta: onsetStrength.meta,
       rhythm: rhythm,
       smi,
+      meyda,
     },
   };
 }
