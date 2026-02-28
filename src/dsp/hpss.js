@@ -1,0 +1,129 @@
+/**
+ * Harmonic-Percussive Source Separation (HPSS).
+ * Separates spectrogram into harmonic (sustained) and percussive (transient) components.
+ */
+
+import { fftReal, magSpectrum } from './fft.js';
+import { applyHannWindow } from './utils.js';
+
+/**
+ * Median filter 1D (for separating harmonic from percussive).
+ * @param {Array<number>} data
+ * @param {number} kernel_size (odd number)
+ * @returns {Array<number>}
+ */
+function medianFilter1D(data, kernel_size = 5) {
+  const pad = Math.floor(kernel_size / 2);
+  const result = new Array(data.length).fill(0);
+  for (let i = 0; i < data.length; i++) {
+    const window = [];
+    for (let j = -pad; j <= pad; j++) {
+      const idx = i + j;
+      if (idx >= 0 && idx < data.length) {
+        window.push(data[idx]);
+      }
+    }
+    window.sort((a, b) => a - b);
+    result[i] = window[Math.floor(window.length / 2)];
+  }
+  return result;
+}
+
+/**
+ * Apply median filter to 2D spectrogram (along time axis for harmonic, freq axis for percussive).
+ * @param {Array<Array<number>>} spectrogram [frame][freq_bin]
+ * @param {string} axis 'time' or 'freq'
+ * @param {number} kernel_size
+ * @returns {Array<Array<number>>}
+ */
+function medianFilterSpectrogram(spectrogram, axis = 'time', kernel_size = 5) {
+  const result = spectrogram.map(frame => [...frame]);
+
+  if (axis === 'time') {
+    // Filter along time axis for each frequency
+    const nFreq = spectrogram[0].length;
+    for (let freq = 0; freq < nFreq; freq++) {
+      const timeSlice = spectrogram.map(frame => frame[freq]);
+      const filtered = medianFilter1D(timeSlice, kernel_size);
+      for (let t = 0; t < spectrogram.length; t++) {
+        result[t][freq] = filtered[t];
+      }
+    }
+  } else if (axis === 'freq') {
+    // Filter along frequency axis for each time frame
+    for (let t = 0; t < spectrogram.length; t++) {
+      result[t] = medianFilter1D(spectrogram[t], kernel_size);
+    }
+  }
+  return result;
+}
+
+/**
+ * HPSS: separate spectrogram into harmonic and percussive.
+ * @param {Float32Array} buffer
+ * @param {number} sampleRate
+ * @param {{frameSize?: number, hopSize?: number}} options
+ * @returns {{harmonic_ratio: number, percussive_ratio: number, harmonic_frames: Array, percussive_frames: Array}}
+ */
+export function analyzeHarmonicPercussive(buffer, sampleRate, options = {}) {
+  const frameSize = options.frameSize || 2048;
+  const hopSize = options.hopSize || frameSize / 2;
+  const harmonicKernelSize = 5; // median kernel for time axis
+  const percussiveKernelSize = 5; // median kernel for freq axis
+
+  // Build spectrogram
+  const spectrogram = [];
+  for (let i = 0; i + frameSize <= buffer.length; i += hopSize) {
+    const frame = buffer.slice(i, i + frameSize);
+    applyHannWindow(frame);
+    const mag = magSpectrum(fftReal(frame));
+    spectrogram.push(Array.from(mag));
+  }
+
+  if (spectrogram.length === 0) {
+    return { harmonic_ratio: 0, percussive_ratio: 0, harmonic_frames: [], percussive_frames: [] };
+  }
+
+  // Harmonic: median filter along time axis
+  const harmonicSpec = medianFilterSpectrogram(spectrogram, 'time', harmonicKernelSize);
+
+  // Percussive: median filter along frequency axis
+  const percussiveSpec = medianFilterSpectrogram(spectrogram, 'freq', percussiveKernelSize);
+
+  // Compute energy per frame
+  let totalHarmonicEnergy = 0;
+  let totalPercussiveEnergy = 0;
+
+  const harmonicFrames = [];
+  const percussiveFrames = [];
+
+  for (let t = 0; t < spectrogram.length; t++) {
+    let harmonicE = 0, percussiveE = 0;
+    for (let f = 0; f < spectrogram[t].length; f++) {
+      harmonicE += harmonicSpec[t][f] * harmonicSpec[t][f];
+      percussiveE += percussiveSpec[t][f] * percussiveSpec[t][f];
+    }
+    totalHarmonicEnergy += harmonicE;
+    totalPercussiveEnergy += percussiveE;
+
+    harmonicFrames.push({
+      tSec: t * (hopSize / sampleRate),
+      energy: harmonicE,
+    });
+    percussiveFrames.push({
+      tSec: t * (hopSize / sampleRate),
+      energy: percussiveE,
+    });
+  }
+
+  const totalEnergy = totalHarmonicEnergy + totalPercussiveEnergy;
+  const harmonicRatio = totalEnergy > 0 ? totalHarmonicEnergy / totalEnergy : 0;
+  const percussiveRatio = totalEnergy > 0 ? totalPercussiveEnergy / totalEnergy : 0;
+
+  return {
+    harmonic_ratio: harmonicRatio,
+    percussive_ratio: percussiveRatio,
+    harmonic_frames: harmonicFrames,
+    percussive_frames: percussiveFrames,
+  };
+}

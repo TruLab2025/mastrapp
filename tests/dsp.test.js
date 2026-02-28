@@ -253,3 +253,90 @@ test('psycho pack: high-frequency energy increases sharpness and sibilance', () 
   assert.ok(b.sharpness > a.sharpness);
   assert.ok(b.sibilanceIndex > a.sibilanceIndex);
 });
+
+test('spectralSlope computes brightness metric', async () => {
+  const { spectralSlope } = await import('../src/dsp/spectral-advanced.js');
+  const fs = 48000;
+  
+  // Create a spectrum with low-frequency emphasis (dark)
+  const darkMag = new Float32Array(1024);
+  for (let i = 0; i < 512; i++) {
+    darkMag[i] = 100 / (i + 1); // 1/f decay
+  }
+  
+  // Create a spectrum with high-frequency emphasis (bright)
+  const brightMag = new Float32Array(1024);
+  for (let i = 0; i < 512; i++) {
+    brightMag[i] = (i + 1) / 100;
+  }
+  
+  const slopeDark = spectralSlope(darkMag, fs);
+  const slopeBright = spectralSlope(brightMag, fs);
+  
+  assert.ok(slopeDark < slopeBright, 'dark spectrum should have lower slope');
+});
+
+test('spectralEntropy measures spectral complexity', async () => {
+  const { spectralEntropy } = await import('../src/dsp/spectral-advanced.js');
+  
+  // Pure tone: low entropy
+  const toneMag = new Float32Array(1024).fill(0);
+  toneMag[100] = 10; // single peak
+  
+  // Noise: high entropy
+  const noiseMag = new Float32Array(1024);
+  for (let i = 0; i < noiseMag.length; i++) {
+    noiseMag[i] = Math.random();
+  }
+  
+  const entropyTone = spectralEntropy(toneMag);
+  const entropyNoise = spectralEntropy(noiseMag);
+  
+  assert.ok(entropyTone < entropyNoise, 'tone should have lower entropy than noise');
+});
+
+test('rhythmicStability computes from onsets', async () => {
+  const { analyzeRhythmicStability } = await import('../src/dsp/rhythmic-stability.js');
+  
+  // Regular onsets (120 BPM = 0.5s per beat)
+  const regularOnsets = [0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0];
+  const stab = analyzeRhythmicStability(regularOnsets, 120);
+  
+  assert.ok(stab.stability > 0.8, 'regular onsets should have high stability');
+  assert.ok(stab.tightness > 0.8, 'regular onsets should be tight');
+});
+
+test('chordDensity from chroma', async () => {
+  const { analyzeChordDensity } = await import('../src/dsp/chord-density.js');
+  
+  // Simulate chroma frames (12-bin vectors)
+  const chromaFrames = [];
+  for (let i = 0; i < 100; i++) {
+    const chroma = new Array(12).fill(0);
+    chroma[i % 12] = 1; // rotating emphasis
+    chromaFrames.push(chroma);
+  }
+  
+  const density = analyzeChordDensity(chromaFrames, 0.02);
+  
+  assert.ok(typeof density.chord_changes_per_minute === 'number');
+  assert.ok(density.chord_changes_per_minute >= 0);
+});
+
+test('lowMidBuildup detects energy in 150-350 Hz band', async () => {
+  const { lowMidBuildup } = await import('../src/dsp/spectral-advanced.js');
+  const fs = 48000;
+  const nBins = 1024;
+  const mag = new Float32Array(nBins).fill(0);
+  // place energy around 200 Hz
+  const nyq = fs / 2;
+  const binHz = nyq / (nBins - 1);
+  const bin = Math.round(200 / binHz);
+  mag[bin] = 1;
+
+  const res = lowMidBuildup(mag, fs);
+  assert.ok(res.fraction > 0);
+  assert.ok(res.percent > 0);
+  // If energy is concentrated in that bin, fraction should be ~100% (within tolerance)
+  assert.ok(res.fraction > 0.9 || res.percent > 90);
+});

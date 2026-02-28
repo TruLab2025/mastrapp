@@ -8,6 +8,12 @@ import { analyzeWithEssentia } from './essentia/analyze-essentia.js';
 import { analyzeRhythmFromOnsets } from './dsp/rhythm.js';
 import { analyzeSmiFromBandNormalized } from './dsp/smi.js';
 import { analyzeMeydaFeatures } from './dsp/meyda.js';
+import { spectralSlope, spectralEntropy, crestFactorPerBand, lowMidBuildup } from './dsp/spectral-advanced.js';
+import { analyzeHarmonicPercussive } from './dsp/hpss.js';
+import { analyzeChordDensity } from './dsp/chord-density.js';
+import { analyzeRhythmicStability } from './dsp/rhythmic-stability.js';
+import { fftReal, magSpectrum } from './dsp/fft.js';
+import { applyHannWindow } from './dsp/utils.js';
 
 function meanOfFrames(frames, field) {
   if (!Array.isArray(frames) || frames.length === 0) return null;
@@ -207,6 +213,75 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
     meyda = { error: String(e) };
   }
 
+  // Advanced spectral features: slope, entropy, crest per band
+  options.onProgress?.({ stage: 'Spectral Advanced' });
+  let spectralAdv = null;
+  try {
+    const monoMix = new Float32Array(left.length);
+    for (let i = 0; i < left.length; i++) {
+      monoMix[i] = 0.5 * (left[i] + right[i]);
+    }
+    // Compute per-frame spectral features from the first frame for summary
+    const fftFrame = new Float32Array(frameSize);
+    for (let i = 0; i < Math.min(frameSize, monoMix.length); i++) {
+      fftFrame[i] = monoMix[i];
+    }
+    // Apply Hann window
+    for (let i = 0; i < frameSize; i++) {
+      const w = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (frameSize - 1)));
+      fftFrame[i] *= w;
+    }
+    const fftResult = fftReal(fftFrame);
+    const magnitude = magSpectrum(fftResult);
+    const slope = spectralSlope(magnitude, sampleRate);
+    const entropy = spectralEntropy(magnitude);
+    const crestPerBand = crestFactorPerBand(magnitude, sampleRate);
+    const lowMid = lowMidBuildup(magnitude, sampleRate);
+    spectralAdv = { slope, entropy, crestPerBand, lowMid };
+  } catch (e) {
+    spectralAdv = { error: String(e) };
+  }
+
+  // Harmonic-Percussive Source Separation
+  options.onProgress?.({ stage: 'HPSS' });
+  let hpss = null;
+  try {
+    const monoMix = new Float32Array(left.length);
+    for (let i = 0; i < left.length; i++) {
+      monoMix[i] = 0.5 * (left[i] + right[i]);
+    }
+    hpss = analyzeHarmonicPercussive(monoMix, sampleRate, { frameSize, hopSize });
+  } catch (e) {
+    hpss = { error: String(e) };
+  }
+
+  // Chord density from Meyda chroma (if available)
+  options.onProgress?.({ stage: 'Chord Density' });
+  let chordDensity = null;
+  try {
+    if (meyda && !meyda.error) {
+      chordDensity = analyzeChordDensity(meyda, hopSize / sampleRate);
+    } else {
+      chordDensity = { chord_changes_per_minute: 0, mean_complexity: 0, chord_changes: [] };
+    }
+  } catch (e) {
+    chordDensity = { error: String(e) };
+  }
+
+  // Rhythmic stability from onsets
+  options.onProgress?.({ stage: 'Rhythmic Stability' });
+  let rhythmicStab = null;
+  try {
+    if (rhythm && rhythm.onsets && Array.isArray(rhythm.onsets)) {
+      const onsetTimes = rhythm.onsets.map(o => (typeof o === 'number' ? o : o.tSec || 0));
+      rhythmicStab = analyzeRhythmicStability(onsetTimes, rhythm.estimatedBpm || 120);
+    } else {
+      rhythmicStab = { stability: 0, tightness: 0, ioi_mean_ms: 0, ioi_cv: 0, onset_count: 0 };
+    }
+  } catch (e) {
+    rhythmicStab = { error: String(e) };
+  }
+
   // Loudness curve
   const loudness = await analyzeLoudnessOverTime(left, right, sampleRate, options.onProgress);
   const shortTermLufsStd = stddevOfFrames(loudness.frames, 'lufsShortTerm');
@@ -340,6 +415,17 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
       // expose entire meyda summary (may contain multiple mean vectors)
       meyda: meyda && typeof meyda === 'object' ? meyda : null,
       smi: smi?.stats ? { mean: smi.stats.mean, std: smi.stats.std } : (smi || null),
+      spectralAdvanced: spectralAdv && !spectralAdv.error ? { 
+        slope: spectralAdv.slope, 
+        entropy: spectralAdv.entropy, 
+        crestPerBand: spectralAdv.crestPerBand 
+      } : (spectralAdv || null),
+      hpss: hpss && !hpss.error ? {
+        harmonic_ratio: hpss.harmonic_ratio,
+        percussive_ratio: hpss.percussive_ratio,
+      } : (hpss || null),
+      chordDensity: chordDensity || null,
+      rhythmicStability: rhythmicStab || null,
     },
     timeSeries: {
       spectrumFrames: spectrum.frames,
@@ -357,6 +443,8 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
       rhythm: rhythm,
       smi,
       meyda,
+      spectralAdvanced: spectralAdv,
+      hpss,
     },
   };
 }
