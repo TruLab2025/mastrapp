@@ -340,3 +340,41 @@ test('lowMidBuildup detects energy in 150-350 Hz band', async () => {
   // If energy is concentrated in that bin, fraction should be ~100% (within tolerance)
   assert.ok(res.fraction > 0.9 || res.percent > 90);
 });
+
+  test('lowMidOverTime returns time-series', async () => {
+    const { lowMidOverTime } = await import('../src/dsp/spectral-advanced.js');
+    const fs = 48000;
+    // create 1 second sine at 200 Hz (within 150-350)
+    const n = fs * 1;
+    const buf = new Float32Array(n);
+    for (let i = 0; i < n; i++) buf[i] = Math.sin((2 * Math.PI * 200 * i) / fs);
+    const series = lowMidOverTime(buf, fs, { frameSize: 1024, hopSize: 512 });
+    assert.ok(Array.isArray(series));
+    assert.ok(series.length > 0);
+    assert.ok(series[0].fraction > 0);
+  });
+
+  test('transient sharpness computes non-zero for percussive onset', async () => {
+    const { transientSharpnessFromOnsets } = await import('../src/dsp/transient-sharpness.js');
+    const fs = 48000;
+    const n = fs * 1;
+    const buf = new Float32Array(n);
+    // create impulse at 0.1s
+    buf[Math.floor(0.1 * fs)] = 1.0;
+    const out = transientSharpnessFromOnsets(buf, fs, [0.1], { frameSize: 2048 });
+    assert.ok(out.frames.length === 1);
+    assert.ok(typeof out.meanSharpness === 'number');
+  });
+
+  test('section detection finds sections in synthetic loudness', async () => {
+    const { detectSectionsFromLoudness } = await import('../src/dsp/sections.js');
+    const frames = [];
+    for (let i = 0; i < 100; i++) {
+      const t = i * 0.1;
+      const l = i < 50 ? -20 : -12; // change at halfway
+      frames.push({ tSec: t, lufsShortTerm: l });
+    }
+    const secs = detectSectionsFromLoudness(frames, { deltaLufs: 3.0 });
+    assert.ok(Array.isArray(secs));
+    assert.ok(secs.length >= 2);
+  });

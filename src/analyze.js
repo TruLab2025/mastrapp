@@ -8,7 +8,9 @@ import { analyzeWithEssentia } from './essentia/analyze-essentia.js';
 import { analyzeRhythmFromOnsets } from './dsp/rhythm.js';
 import { analyzeSmiFromBandNormalized } from './dsp/smi.js';
 import { analyzeMeydaFeatures } from './dsp/meyda.js';
-import { spectralSlope, spectralEntropy, crestFactorPerBand, lowMidBuildup } from './dsp/spectral-advanced.js';
+import { spectralSlope, spectralEntropy, crestFactorPerBand, lowMidBuildup, lowMidOverTime } from './dsp/spectral-advanced.js';
+import { transientSharpnessFromOnsets } from './dsp/transient-sharpness.js';
+import { detectSectionsFromLoudness } from './dsp/sections.js';
 import { analyzeHarmonicPercussive } from './dsp/hpss.js';
 import { analyzeChordDensity } from './dsp/chord-density.js';
 import { analyzeRhythmicStability } from './dsp/rhythmic-stability.js';
@@ -354,6 +356,35 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
     };
   })();
 
+  // Low-mid time series (per-frame)
+  let lowMidSeries = null;
+  try {
+    const monoMix = new Float32Array(left.length);
+    for (let i = 0; i < left.length; i++) monoMix[i] = 0.5 * (left[i] + right[i]);
+    lowMidSeries = lowMidOverTime(monoMix, sampleRate, { frameSize: frameSize, hopSize: hopSize });
+  } catch (e) {
+    lowMidSeries = { error: String(e) };
+  }
+
+  // Transient sharpness from onsets
+  let transientSharp = null;
+  try {
+    const onsetTimes = onsets.onsetsSec ?? [];
+    const monoMix = new Float32Array(left.length);
+    for (let i = 0; i < left.length; i++) monoMix[i] = 0.5 * (left[i] + right[i]);
+    transientSharp = transientSharpnessFromOnsets(monoMix, sampleRate, onsetTimes, { frameSize: frameSize });
+  } catch (e) {
+    transientSharp = { error: String(e) };
+  }
+
+  // Section detection from loudness
+  let sections = null;
+  try {
+    sections = detectSectionsFromLoudness(loudness.frames || [], { deltaLufs: 3.0 });
+  } catch (e) {
+    sections = { error: String(e) };
+  }
+
   return {
     meta: {
       analyzedAt: new Date().toISOString(),
@@ -418,7 +449,8 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
       spectralAdvanced: spectralAdv && !spectralAdv.error ? { 
         slope: spectralAdv.slope, 
         entropy: spectralAdv.entropy, 
-        crestPerBand: spectralAdv.crestPerBand 
+        crestPerBand: spectralAdv.crestPerBand,
+        lowMid: spectralAdv.lowMid
       } : (spectralAdv || null),
       hpss: hpss && !hpss.error ? {
         harmonic_ratio: hpss.harmonic_ratio,
@@ -426,6 +458,9 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
       } : (hpss || null),
       chordDensity: chordDensity || null,
       rhythmicStability: rhythmicStab || null,
+      lowMidSeries: lowMidSeries,
+      transientSharpness: transientSharp,
+      sections: sections,
     },
     timeSeries: {
       spectrumFrames: spectrum.frames,
@@ -448,3 +483,4 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
     },
   };
 }
+

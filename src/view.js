@@ -90,6 +90,45 @@ function makeBar(value01) {
   return outer;
 }
 
+function makeLowMidEl(fraction) {
+  const el = document.createElement('div');
+  if (typeof fraction !== 'number' || !Number.isFinite(fraction)) {
+    el.textContent = '—';
+    return el;
+  }
+  const pct = fraction * 100;
+  el.textContent = `${pct.toFixed(1)}%`;
+  if (pct < 15) el.style.color = 'green';
+  else if (pct < 30) el.style.color = 'orange';
+  else el.style.color = 'red';
+  return el;
+}
+
+function makeSparkline(values, width = 120, height = 24) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'transparent';
+  ctx.clearRect(0, 0, width, height);
+  if (!Array.isArray(values) || values.length === 0) return canvas;
+  const arr = values.map((v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0));
+  const min = Math.min(...arr);
+  const max = Math.max(...arr);
+  const range = Math.max(1e-6, max - min);
+  ctx.strokeStyle = '#2b7';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let i = 0; i < arr.length; i++) {
+    const x = (i / (arr.length - 1)) * (width - 2) + 1;
+    const y = height - 1 - ((arr[i] - min) / range) * (height - 2);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  return canvas;
+}
+
 function makeHotspotList(items, formatItem, maxItems = 5) {
   const wrap = document.createElement('div');
   wrap.style.display = 'grid';
@@ -177,6 +216,27 @@ function renderSummaryLike(root, summary) {
     ['HFC (STD)', safeGet(global, 'spectral.hfcStd') != null ? `${fmt(global.spectral.hfcStd, 4)}` : '—'],
     ['Spectral rolloff (mean)', safeGet(global, 'spectral.rolloffHzMean') != null ? `${fmt(global.spectral.rolloffHzMean, 1)} Hz` : '—'],
     ['Spectral flatness (mean)', safeGet(global, 'spectral.flatnessMean') != null ? `${fmt(global.spectral.flatnessMean, 4)}` : '—'],
+    ['Low‑mid buildup (150–350 Hz)', (() => {
+      const v = safeGet(global, 'spectralAdvanced.lowMid.fraction');
+      const series = safeGet(result, 'timeSeries.spectralAdvanced') || safeGet(result, 'timeSeries.lowMidSeries') || null;
+      // allow both series formats: array of {tSec,fraction} or fraction array
+      let arr = null;
+      if (Array.isArray(series) && series.length > 0) {
+        if (typeof series[0] === 'number') arr = series;
+        else if (typeof series[0] === 'object' && series[0] != null) arr = series.map((s) => s.fraction ?? 0);
+      }
+      const wrap = document.createElement('div');
+      wrap.style.display = 'flex';
+      wrap.style.alignItems = 'center';
+      wrap.style.gap = '8px';
+      wrap.appendChild(makeLowMidEl(v));
+      if (arr) wrap.appendChild(makeSparkline(arr, 120, 24));
+      return wrap;
+    })()],
+    ['Low‑mid buildup (150–350 Hz)', (() => {
+      const v = safeGet(global, 'spectralAdvanced.lowMid.fraction');
+      return makeLowMidEl(v);
+    })()],
     ['Chroma (mean)', safeGet(global, 'meyda.chromaMean') != null ? safeGet(global, 'meyda.chromaMean').map((v) => fmt(v, 2)).join(', ') : '—'],
     ['Meyda MFCC (mean)', safeGet(global, 'meyda.mfccMean') != null ? safeGet(global, 'meyda.mfccMean').slice(0,5).map((v) => fmt(v, 2)).join(', ') + (safeGet(global, 'meyda.mfccMean').length > 5 ? ' ...' : '') : '—'],
     ['Meyda ZCR (mean)', safeGet(global, 'meyda.zcrMean') != null ? fmt(safeGet(global, 'meyda.zcrMean'), 4) : '—'],

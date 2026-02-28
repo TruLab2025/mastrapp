@@ -2,6 +2,8 @@
  * Advanced spectral features: slope, entropy, crest factor per band.
  */
 
+import { fftReal, magSpectrum } from './fft.js';
+
 /**
  * Compute spectral slope (linear regression of log magnitude vs log frequency).
  * Negative slope = dark, positive slope = bright.
@@ -126,4 +128,30 @@ export function lowMidBuildup(magnitude, sampleRate) {
   }
   const fraction = totalEnergy > 0 ? bandEnergy / totalEnergy : 0;
   return { bandEnergy, totalEnergy, fraction, percent: fraction * 100 };
+}
+
+/**
+ * Compute low-mid buildup over time (per frame).
+ * @param {Float32Array} buffer - audio buffer (mono)
+ * @param {number} sampleRate
+ * @param {{frameSize?:number,hopSize?:number}} options
+ * @returns {Array<{tSec:number,fraction:number,percent:number}>}
+ */
+export function lowMidOverTime(buffer, sampleRate, options = {}) {
+  const frameSize = options.frameSize || 2048;
+  const hopSize = options.hopSize || Math.floor(frameSize / 2);
+  const out = [];
+  for (let i = 0; i + frameSize <= buffer.length; i += hopSize) {
+    const frame = buffer.subarray(i, i + frameSize);
+    // Apply simple Hann window in place
+    const win = new Float32Array(frameSize);
+    for (let j = 0; j < frameSize; j++) win[j] = frame[j] * (0.5 * (1 - Math.cos((2 * Math.PI * j) / (frameSize - 1))));
+    // Compute FFT magnitudes using project's fft
+    // Note: fftReal returns frequency-domain arrays compatible with magSpectrum
+    const reim = fftReal(win);
+    const mag = magSpectrum(reim.re, reim.im);
+    const lm = lowMidBuildup(mag, sampleRate);
+    out.push({ tSec: i / sampleRate, fraction: lm.fraction, percent: lm.percent });
+  }
+  return out;
 }
