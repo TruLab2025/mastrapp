@@ -122,7 +122,7 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
         const left = audioBuffer.getChannelData(0);
         const right = audioBuffer.getChannelData(1);
         const sampleRate = audioBuffer.sampleRate;
-        const frameSize = Math.max(128, Math.round((options.frameMs / 1000) * sampleRate));
+        const frameSize = nextPow2(Math.round((options.frameMs / 1000) * sampleRate));
         const hopSize = Math.max(64, Math.round((options.hopMs / 1000) * sampleRate));
         const meyda = analyzeMeydaFeatures(left, right, sampleRate, { frameSize, hopSize });
         res.global = res.global || {};
@@ -150,7 +150,7 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
   const left = audioBuffer.getChannelData(0);
   const right = audioBuffer.getChannelData(1);
 
-  const frameSize = Math.max(128, Math.round((options.frameMs / 1000) * sampleRate));
+  const frameSize = nextPow2(Math.round((options.frameMs / 1000) * sampleRate));
   const hopSize = Math.max(64, Math.round((options.hopMs / 1000) * sampleRate));
 
   options.onProgress?.({ stage: 'Start', detail: `${channels}ch @ ${sampleRate} Hz` });
@@ -308,7 +308,7 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
   const high = dist.high ?? 0;
 
   const tonalBandDefs = defaultBands();
-    
+
   const tonalBalance = tonalBandDefs
     .filter((b) => !['low', 'mid', 'high'].includes(b.name))
     .map((b) => ({
@@ -446,9 +446,9 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
       // expose entire meyda summary (may contain multiple mean vectors)
       meyda: meyda && typeof meyda === 'object' ? meyda : null,
       smi: smi?.stats ? { mean: smi.stats.mean, std: smi.stats.std } : (smi || null),
-      spectralAdvanced: spectralAdv && !spectralAdv.error ? { 
-        slope: spectralAdv.slope, 
-        entropy: spectralAdv.entropy, 
+      spectralAdvanced: spectralAdv && !spectralAdv.error ? {
+        slope: spectralAdv.slope,
+        entropy: spectralAdv.entropy,
         crestPerBand: spectralAdv.crestPerBand,
         lowMid: spectralAdv.lowMid
       } : (spectralAdv || null),
