@@ -1,6 +1,18 @@
 import Meyda from 'meyda';
 
 /**
+ * Round a number to the nearest power of 2.
+ * @param {number} n
+ * @returns {number}
+ */
+function nearestPowerOf2(n) {
+  const log2 = Math.log2(n);
+  const lower = Math.pow(2, Math.floor(log2));
+  const upper = Math.pow(2, Math.ceil(log2));
+  return upper - n < n - lower ? upper : lower;
+}
+
+/**
  * Compute a set of Meyda features over the file and return summary statistics.
  * Features are calculated on a mono mix of the two channels, frame-by-frame.
  *
@@ -18,7 +30,9 @@ export function analyzeMeydaFeatures(left, right, sampleRate, options = {}) {
     throw new Error('left/right must be Float32Array');
   }
   const len = Math.min(left.length, right.length);
-  const frameSize = options.frameSize || 4096;
+  // Meyda requires frameSize to be a power of 2
+  let frameSize = options.frameSize || 4096;
+  frameSize = nearestPowerOf2(frameSize);
   const hopSize = options.hopSize || Math.floor(frameSize / 2);
   // Use features available in the packaged Meyda build (zcr instead of zeroCrossingRate,
   // no spectralContrast export in this build), keep mfcc and chroma.
