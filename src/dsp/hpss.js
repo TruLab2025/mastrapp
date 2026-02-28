@@ -4,7 +4,7 @@
  */
 
 import { fftReal, magSpectrum } from './fft.js';
-import { applyHannWindow } from './utils.js';
+import { applyHannWindow, nextPow2 } from './utils.js';
 
 /**
  * Median filter 1D (for separating harmonic from percussive).

@@ -155,7 +155,7 @@ export async function analyzeSpectrumOverTime(left, right, sampleRate, frameSize
     makeStereoMixFrame(left, right, start, frameSize, tmp);
     frame.fill(0);
     frame.set(tmp.subarray(0, frameSize), 0);
-    applyHannWindow(frame);
+    applyHannWindow(frame.subarray(0, frameSize));
 
     const { re, im } = fftReal(frame);
     const mag = magSpectrum(re, im);
