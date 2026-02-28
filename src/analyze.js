@@ -5,6 +5,8 @@ import { dbfsFromLinear, rmsOfInterleavedStereo, stddevOfFrames } from './dsp/ut
 import { analyzeTruePeakAndClipping } from './dsp/truepeak.js';
 import { loadEssentia } from './essentia/loader.js';
 import { analyzeWithEssentia } from './essentia/analyze-essentia.js';
+import { analyzeRhythmFromOnsets } from './dsp/rhythm.js';
+import { analyzeSmiFromBandNormalized } from './dsp/smi.js';
 
 function meanOfFrames(frames, field) {
   if (!Array.isArray(frames) || frames.length === 0) return null;
@@ -152,6 +154,24 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
     { windowSec: 0.05 },
   );
 
+  // Rhythm / tempo estimation (lightweight, based on detected onsets)
+  options.onProgress?.({ stage: 'Rhythm' });
+  let rhythm = null;
+  try {
+    rhythm = analyzeRhythmFromOnsets(onsets.onsetsSec || []);
+  } catch (e) {
+    rhythm = { error: String(e) };
+  }
+
+  // Spectral Masking Index (proxy) using bandNormalized per-frame bands
+  options.onProgress?.({ stage: 'SMI' });
+  let smi = null;
+  try {
+    smi = analyzeSmiFromBandNormalized(spectrum.frames, { threshold: 0.5 });
+  } catch (e) {
+    smi = { error: String(e) };
+  }
+
   // Loudness curve
   const loudness = await analyzeLoudnessOverTime(left, right, sampleRate, options.onProgress);
   const shortTermLufsStd = stddevOfFrames(loudness.frames, 'lufsShortTerm');
@@ -281,6 +301,8 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
         onsetStrengthStd: onsetStrength.stats.std,
         onsetBandShares,
       },
+      rhythm: rhythm?.tempoBpm ? { tempoBpm: rhythm.tempoBpm, tempoStd: rhythm.tempoStd, tempoConfidence: rhythm.tempoConfidence } : (rhythm || null),
+      smi: smi?.stats ? { mean: smi.stats.mean, std: smi.stats.std } : (smi || null),
     },
     timeSeries: {
       spectrumFrames: spectrum.frames,
@@ -295,6 +317,8 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
         threshold: onsets.threshold,
       },
       onsetStrengthMeta: onsetStrength.meta,
+      rhythm: rhythm,
+      smi,
     },
   };
 }

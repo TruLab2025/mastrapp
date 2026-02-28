@@ -141,6 +141,21 @@ body {
   padding: 10px 14px;
 }
 
+/* Frequently-used action */
+#resetBtn {
+  background: #162338;
+  border-color: #79a6ff;
+  color: #e8eef6;
+  font-weight: 750;
+  font-size: 14px;
+  padding: 10px 14px;
+}
+
+#resetBtn:not(:disabled):hover {
+  background: #111826;
+  border-color: #e8eef6;
+}
+
 #analyzeBtn:not(:disabled):hover {
   background: #e8eef6;
   border-color: #79a6ff;

@@ -11,7 +11,7 @@ Wynik ma dwa „poziomy”:
 - Pobrania FULL:
 	- **Pobierz FULL A**
 	- **Pobierz FULL REF**
-	- **Pobierz FULL PORÓWNANIE** (zawiera pełne A, pełne REF i sekcję `compare`)
+	- **Pobierz FULL POR** (zawiera pełne A, pełne REF i sekcję `compare`)
 
 ## Co liczy
 

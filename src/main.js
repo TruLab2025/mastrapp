@@ -312,7 +312,7 @@ downloadCompare.addEventListener('click', () => {
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
   const out = makeUploadFriendlyResult(fullCompare);
   downloadJson(out, `${baseA}_vs_${baseB}.comparison.upload.${ts}.json`);
-  setStatus('Pobrano PORÓWNANIE (kompakt).');
+  setStatus('Pobrano POR (kompakt).');
 });
 
 downloadAUpload?.addEventListener('click', () => {
@@ -337,7 +337,7 @@ downloadCompareUpload?.addEventListener('click', () => {
   const baseB = fileB?.name ? fileB.name.replace(/\.[^.]+$/, '') : 'REF';
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
   downloadJson(fullCompare, `${baseA}_vs_${baseB}.comparison.full.${ts}.json`);
-  setStatus('Pobrano PORÓWNANIE (RAW FULL — duże).');
+  setStatus('Pobrano POR (RAW FULL — duże).');
 });
 
 resetBtn?.addEventListener('click', resetAll);
