@@ -3,6 +3,7 @@
  */
 
 import { fftReal, magSpectrum } from './fft.js';
+import { nextPow2 } from './utils.js';
 
 /**
  * Compute spectral slope (linear regression of log magnitude vs log frequency).
@@ -140,16 +141,17 @@ export function lowMidBuildup(magnitude, sampleRate) {
 export function lowMidOverTime(buffer, sampleRate, options = {}) {
   const frameSize = options.frameSize || 2048;
   const hopSize = options.hopSize || Math.floor(frameSize / 2);
+  const fftSize = options.fftSize || nextPow2(frameSize);
   const out = [];
   for (let i = 0; i + frameSize <= buffer.length; i += hopSize) {
-    const frame = buffer.subarray(i, i + frameSize);
-    // Apply simple Hann window in place
-    const win = new Float32Array(frameSize);
-    for (let j = 0; j < frameSize; j++) win[j] = frame[j] * (0.5 * (1 - Math.cos((2 * Math.PI * j) / (frameSize - 1))));
-    // Compute FFT magnitudes using project's fft
-    // Note: fftReal returns frequency-domain arrays compatible with magSpectrum
-    const reim = fftReal(win);
-    const mag = magSpectrum(reim.re, reim.im);
+    const fftFrame = new Float32Array(fftSize);
+    fftFrame.set(buffer.subarray(i, i + frameSize), 0);
+    // Apply Hann window on frameSize only
+    for (let j = 0; j < frameSize; j++) {
+      fftFrame[j] *= (0.5 * (1 - Math.cos((2 * Math.PI * j) / (frameSize - 1))));
+    }
+    const { re, im } = fftReal(fftFrame);
+    const mag = magSpectrum(re, im);
     const lm = lowMidBuildup(mag, sampleRate);
     out.push({ tSec: i / sampleRate, fraction: lm.fraction, percent: lm.percent });
   }

@@ -72,11 +72,14 @@ export function analyzeHarmonicPercussive(buffer, sampleRate, options = {}) {
   const percussiveKernelSize = 5; // median kernel for freq axis
 
   // Build spectrogram
+  const fftSize = nextPow2(frameSize);
   const spectrogram = [];
   for (let i = 0; i + frameSize <= buffer.length; i += hopSize) {
-    const frame = buffer.slice(i, i + frameSize);
-    applyHannWindow(frame);
-    const mag = magSpectrum(fftReal(frame));
+    const frame = new Float32Array(fftSize);
+    frame.set(buffer.subarray(i, i + frameSize), 0);
+    applyHannWindow(frame.subarray(0, frameSize));
+    const { re, im } = fftReal(frame);
+    const mag = magSpectrum(re, im);
     spectrogram.push(Array.from(mag));
   }
 

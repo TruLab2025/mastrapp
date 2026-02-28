@@ -3,6 +3,7 @@
  * high-frequency energy ratio around onsets.
  */
 import { fftReal, magSpectrum } from './fft.js';
+import { nextPow2 } from './utils.js';
 
 export function transientSharpnessFromOnsets(buffer, sampleRate, onsetsSec = [], options = {}) {
   const frameSize = options.frameSize || 2048;
@@ -19,15 +20,15 @@ export function transientSharpnessFromOnsets(buffer, sampleRate, onsetsSec = [],
     }
     const frame = buffer.subarray(start, end);
 
-    // Compute magnitude spectrum for frame (zero-pad to frameSize)
-    const win = new Float32Array(frameSize);
-    for (let i = 0; i < frameSize; i++) win[i] = 0;
+    // Compute magnitude spectrum for frame (zero-pad to fftSize)
+    const fftSize = options.fftSize || nextPow2(frameSize);
+    const win = new Float32Array(fftSize);
     for (let i = 0; i < Math.min(frame.length, frameSize); i++) {
       const w = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (frameSize - 1)));
       win[i] = frame[i] * w;
     }
-    const reim = fftReal(win);
-    const mag = magSpectrum(reim.re, reim.im);
+    const { re, im } = fftReal(win);
+    const mag = magSpectrum(re, im);
 
     // Compute HF energy (above 2000 Hz) vs total
     const nyq = sampleRate / 2;

@@ -122,7 +122,7 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
         const left = audioBuffer.getChannelData(0);
         const right = audioBuffer.getChannelData(1);
         const sampleRate = audioBuffer.sampleRate;
-        const frameSize = nextPow2(Math.round((options.frameMs / 1000) * sampleRate));
+        const frameSize = Math.max(128, Math.round((options.frameMs / 1000) * sampleRate));
         const hopSize = Math.max(64, Math.round((options.hopMs / 1000) * sampleRate));
         const meyda = analyzeMeydaFeatures(left, right, sampleRate, { frameSize, hopSize });
         res.global = res.global || {};
@@ -150,8 +150,9 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
   const left = audioBuffer.getChannelData(0);
   const right = audioBuffer.getChannelData(1);
 
-  const frameSize = nextPow2(Math.round((options.frameMs / 1000) * sampleRate));
+  const frameSize = Math.max(128, Math.round((options.frameMs / 1000) * sampleRate));
   const hopSize = Math.max(64, Math.round((options.hopMs / 1000) * sampleRate));
+  const fftSize = nextPow2(frameSize);
 
   options.onProgress?.({ stage: 'Start', detail: `${channels}ch @ ${sampleRate} Hz` });
 
@@ -224,17 +225,17 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
       monoMix[i] = 0.5 * (left[i] + right[i]);
     }
     // Compute per-frame spectral features from the first frame for summary
-    const fftFrame = new Float32Array(frameSize);
+    const fftFrame = new Float32Array(fftSize);
     for (let i = 0; i < Math.min(frameSize, monoMix.length); i++) {
       fftFrame[i] = monoMix[i];
     }
-    // Apply Hann window
+    // Apply Hann window on frameSize only
     for (let i = 0; i < frameSize; i++) {
       const w = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (frameSize - 1)));
       fftFrame[i] *= w;
     }
-    const fftResult = fftReal(fftFrame);
-    const magnitude = magSpectrum(fftResult);
+    const { re, im } = fftReal(fftFrame);
+    const magnitude = magSpectrum(re, im);
     const slope = spectralSlope(magnitude, sampleRate);
     const entropy = spectralEntropy(magnitude);
     const crestPerBand = crestFactorPerBand(magnitude, sampleRate);
@@ -361,7 +362,7 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
   try {
     const monoMix = new Float32Array(left.length);
     for (let i = 0; i < left.length; i++) monoMix[i] = 0.5 * (left[i] + right[i]);
-    lowMidSeries = lowMidOverTime(monoMix, sampleRate, { frameSize: frameSize, hopSize: hopSize });
+    lowMidSeries = lowMidOverTime(monoMix, sampleRate, { frameSize, hopSize, fftSize });
   } catch (e) {
     lowMidSeries = { error: String(e) };
   }
@@ -372,7 +373,7 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
     const onsetTimes = onsets.onsetsSec ?? [];
     const monoMix = new Float32Array(left.length);
     for (let i = 0; i < left.length; i++) monoMix[i] = 0.5 * (left[i] + right[i]);
-    transientSharp = transientSharpnessFromOnsets(monoMix, sampleRate, onsetTimes, { frameSize: frameSize });
+    transientSharp = transientSharpnessFromOnsets(monoMix, sampleRate, onsetTimes, { frameSize, fftSize });
   } catch (e) {
     transientSharp = { error: String(e) };
   }
