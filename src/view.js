@@ -218,7 +218,7 @@ function renderSummaryLike(root, summary) {
     ['Spectral flatness (mean)', safeGet(global, 'spectral.flatnessMean') != null ? `${fmt(global.spectral.flatnessMean, 4)}` : '—'],
     ['Low‑mid buildup (150–350 Hz)', (() => {
       const v = safeGet(global, 'spectralAdvanced.lowMid.fraction');
-      const series = safeGet(result, 'timeSeries.spectralAdvanced') || safeGet(result, 'timeSeries.lowMidSeries') || null;
+      const series = safeGet(summary, 'timeSeries.spectralAdvanced') || safeGet(summary, 'timeSeries.lowMidSeries') || null;
       // allow both series formats: array of {tSec,fraction} or fraction array
       let arr = null;
       if (Array.isArray(series) && series.length > 0) {
@@ -238,11 +238,11 @@ function renderSummaryLike(root, summary) {
       return makeLowMidEl(v);
     })()],
     ['Chroma (mean)', safeGet(global, 'meyda.chromaMean') != null ? safeGet(global, 'meyda.chromaMean').map((v) => fmt(v, 2)).join(', ') : '—'],
-    ['Meyda MFCC (mean)', safeGet(global, 'meyda.mfccMean') != null ? safeGet(global, 'meyda.mfccMean').slice(0,5).map((v) => fmt(v, 2)).join(', ') + (safeGet(global, 'meyda.mfccMean').length > 5 ? ' ...' : '') : '—'],
+    ['Meyda MFCC (mean)', safeGet(global, 'meyda.mfccMean') != null ? safeGet(global, 'meyda.mfccMean').slice(0, 5).map((v) => fmt(v, 2)).join(', ') + (safeGet(global, 'meyda.mfccMean').length > 5 ? ' ...' : '') : '—'],
     ['Meyda ZCR (mean)', safeGet(global, 'meyda.zcrMean') != null ? fmt(safeGet(global, 'meyda.zcrMean'), 4) : '—'],
     ['Chroma (mean)', safeGet(global, 'meyda.chromaMean') != null ? safeGet(global, 'meyda.chromaMean').map((v) => fmt(v, 2)).join(', ') : '—'],
     ['Meyda spectral contrast (mean)', safeGet(global, 'meyda.spectralContrastMean') != null ? safeGet(global, 'meyda.spectralContrastMean').map((v) => fmt(v, 2)).join(', ') : '—'],
-    ['Meyda MFCC (mean)', safeGet(global, 'meyda.mfccMean') != null ? safeGet(global, 'meyda.mfccMean').slice(0,5).map((v) => fmt(v, 2)).join(', ') + (safeGet(global, 'meyda.mfccMean').length > 5 ? ' ...' : '') : '—'],
+    ['Meyda MFCC (mean)', safeGet(global, 'meyda.mfccMean') != null ? safeGet(global, 'meyda.mfccMean').slice(0, 5).map((v) => fmt(v, 2)).join(', ') + (safeGet(global, 'meyda.mfccMean').length > 5 ? ' ...' : '') : '—'],
     ['Meyda ZCR (mean)', safeGet(global, 'meyda.zeroCrossingRateMean') != null ? fmt(safeGet(global, 'meyda.zeroCrossingRateMean'), 4) : '—'],
     ['Sharpness (mean)', safeGet(global, 'psycho.sharpness.mean') != null ? fmt(safeGet(global, 'psycho.sharpness.mean'), 3) : '—'],
     ['Sharpness (STD)', safeGet(global, 'psycho.sharpness.std') != null ? fmt(safeGet(global, 'psycho.sharpness.std'), 3) : '—'],

@@ -40,7 +40,12 @@ async function firstExisting(urls) {
   for (const u of urls) {
     try {
       const r = await fetch(u, { method: 'GET' });
-      if (r.ok) return u;
+      if (r.ok) {
+        const ct = r.headers.get('Content-Type') || '';
+        // If we get "text/html", it's likely a Vite/Vercel SPA fallback (404-ish).
+        if (ct.includes('text/html')) continue;
+        return u;
+      }
     } catch {
       // ignore
     }
