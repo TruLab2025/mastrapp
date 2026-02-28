@@ -32,7 +32,26 @@ export function analyzeMeydaFeatures(left, right, sampleRate, options = {}) {
     for (let j = 0; j < frameSize; j++) {
       mono[j] = 0.5 * (left[i + j] + right[i + j]);
     }
-    const feats = Meyda.extract(featsList, mono, { sampleRate });
+    // Use Meyda.extract with mono frame and feature list
+    // In Node.js (Meyda 5.6.3), extract() expects: (features, bufferArray, options)
+    let feats = null;
+    try {
+      feats = Meyda.extract(featsList, mono, { sampleRate });
+    } catch (err) {
+      // Fallback: try with createMeydaAnalyzer if available
+      try {
+        if (typeof Meyda.createMeydaAnalyzer === 'function') {
+          const analyzer = Meyda.createMeydaAnalyzer({ source: mono, bufferSize: frameSize, sampleRate, featureExtractors: featsList });
+          feats = analyzer.get();
+        } else {
+          console.warn('Meyda extract/analyzer error:', err);
+          continue;
+        }
+      } catch (errFallback) {
+        console.warn('Meyda fallback error:', errFallback);
+        continue;
+      }
+    }
     if (!feats) continue;
     count++;
     for (const f of featsList) {

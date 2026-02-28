@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "name": "mastrapp",
   "framework": "vite",
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
