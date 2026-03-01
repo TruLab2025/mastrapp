@@ -228,15 +228,42 @@ async function runAnalysis() {
       ...settings,
       onProgress: (p) => {
         if (p?.stage) {
-          setStatus(`ORG: ${p.stage}${p.detail ? ` — ${p.detail}` : ''}`);
-          // Map stages to progress
-          const stages = { 'Loudness': 0.1, 'Loudness (frames)': 0.2, 'TruePeak': 0.4, 'Meyda': 0.6, 'HPSS': 0.8, 'Sections': 0.9 };
-          const stageBase = stages[p.stage] || 0;
-          let subPct = 0;
-          if (p.detail && p.detail.includes('%')) subPct = parseInt(p.detail) / 100;
+          setStatus(`${fileB ? 'ORG' : 'Analizuję'}: ${p.stage}${p.detail ? ` — ${p.detail}` : ''}`);
+          // Refined weights for smoothness
+          const stages = {
+            'Loudness': 0.0,
+            'Loudness (frames)': 0.1,
+            'TruePeak': 0.2,
+            'Meyda': 0.4,
+            'HPSS': 0.7,
+            'Sections': 0.95
+          };
+          const stageWeights = {
+            'Loudness': 0.1,
+            'Loudness (frames)': 0.1,
+            'TruePeak': 0.2,
+            'Meyda': 0.3,
+            'HPSS': 0.25,
+            'Sections': 0.05
+          };
 
-          const currentProgress = startPct + basePct * (stageBase + subPct * 0.1);
-          updateProgress(currentProgress, `ORG: ${p.stage}`);
+          const stageBase = stages[p.stage] ?? 0;
+          const stageWeight = stageWeights[p.stage] ?? 0;
+          let subPct = 0;
+
+          // Try to extract numeric progress from detail
+          if (p.detail) {
+            if (p.detail.includes('%')) {
+              subPct = parseInt(p.detail) / 100;
+            } else if (/^\d+$/.test(p.detail)) {
+              // For frames, we don't know the total here easily, but we can guess or just move a bit
+              // Let's assume approx total based on duration if we had it, but let's just use it as a small increment for now
+              subPct = Math.min(0.9, parseInt(p.detail) / 5000);
+            }
+          }
+
+          const currentProgress = startPct + basePct * (stageBase + subPct * stageWeight);
+          updateProgress(currentProgress, `${fileB ? 'ORG' : 'Analiza'}: ${p.stage}`);
         }
       },
     });
