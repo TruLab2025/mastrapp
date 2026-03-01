@@ -65,7 +65,7 @@ body {
   gap: 12px;
 }
 
-.dropzone > div {
+.dropzone>div {
   min-width: 0;
 }
 
@@ -116,6 +116,7 @@ body {
 .row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   margin-top: 12px;
 }
@@ -242,7 +243,7 @@ body {
   background: #0b0f14;
 }
 
-.bar > div {
+.bar>div {
   height: 100%;
   background: #79a6ff;
 }
@@ -294,18 +295,22 @@ input[type="number"] {
   .dropgrid {
     grid-template-columns: 1fr;
   }
+
   .dropzone {
     flex-direction: column;
     align-items: stretch;
   }
+
   .file {
     width: 100%;
     max-width: 100%;
   }
+
   .grid {
     grid-template-columns: 1fr;
   }
 }
+
 .btn.secondary.tertiary {
   border-color: #355070;
   color: #b7c2d1;
@@ -326,11 +331,23 @@ input[type="number"] {
   border: 1px solid #1e2a3b;
 }
 
-.progress-label {
-  font-size: 12px;
-  color: #b7c2d1;
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 8px;
-  font-weight: 600;
+}
+
+.progress-label {
+  font-size: 11px;
+  color: #b7c2d1;
+  font-weight: 650;
+}
+
+.status {
+  font-size: 11px;
+  color: #79a6ff;
+  font-weight: 500;
 }
 
 .progress-bar {

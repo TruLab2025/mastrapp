@@ -15,18 +15,14 @@ function nearestPowerOf2(n) {
 
 /**
  * Compute a set of Meyda features over the file and return summary statistics.
- * Features are calculated on a mono mix of the two channels, frame-by-frame.
- *
- * Default feature list: chroma (12-band vector), spectralContrast (6-band vector),
- * mfcc (13 coefficients), zeroCrossingRate.
  *
  * @param {Float32Array} left
  * @param {Float32Array} right
  * @param {number} sampleRate
- * @param {{frameSize?:number,hopSize?:number,features?:string[]}} options
- * @returns {Object} summary with one property per feature (mean array or value)
+ * @param {{frameSize?:number,hopSize?:number,features?:string[],onProgress?:(p:any)=>void}} options
+ * @returns {Promise<Object>} summary statistics
  */
-export function analyzeMeydaFeatures(left, right, sampleRate, options = {}) {
+export async function analyzeMeydaFeatures(left, right, sampleRate, options = {}) {
   if (!(left instanceof Float32Array) || !(right instanceof Float32Array)) {
     throw new Error('left/right must be Float32Array');
   }
@@ -34,12 +30,10 @@ export function analyzeMeydaFeatures(left, right, sampleRate, options = {}) {
   // Meyda requires frameSize to be a power of 2
   let frameSize = options.frameSize || 4096;
   frameSize = nearestPowerOf2(frameSize);
-  const hopSize = options.hopSize || Math.floor(frameSize / 2);
-  // Use features available in the packaged Meyda build (zcr instead of zeroCrossingRate,
-  // no spectralContrast export in this build), keep mfcc and chroma.
+  const hopSize = options.hopMs ? Math.round((options.hopMs / 1000) * sampleRate) : options.hopSize || Math.floor(frameSize / 2);
+
   const featsList = options.features || ['chroma', 'mfcc', 'zcr'];
 
-  const accum = {}; // feature -> accumulator (array or number)
   const timeSeries = {}; // feature -> array of values per frame
   for (const f of featsList) timeSeries[f] = [];
   let count = 0;
@@ -70,16 +64,11 @@ export function analyzeMeydaFeatures(left, right, sampleRate, options = {}) {
       // Save to timeSeries
       if (Array.isArray(val)) timeSeries[f].push([...val]);
       else timeSeries[f].push(val);
+    }
 
-      if (Array.isArray(val)) {
-        if (!accum[f]) accum[f] = new Array(val.length).fill(0);
-        for (let k = 0; k < val.length; k++) {
-          const v = val[k];
-          if (typeof v === 'number' && Number.isFinite(v)) accum[f][k] += v;
-        }
-      } else if (typeof val === 'number' && Number.isFinite(val)) {
-        accum[f] = (accum[f] || 0) + val;
-      }
+    if (count % 250 === 0) {
+      if (options.onProgress) options.onProgress({ stage: 'Meyda', detail: `frame ${count}` });
+      await new Promise(r => setTimeout(r, 0));
     }
   }
 

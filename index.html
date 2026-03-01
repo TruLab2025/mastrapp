@@ -50,12 +50,14 @@
         <button id="downloadB" class="btn secondary" disabled>Pobierz REF</button>
         <button id="downloadCompare" class="btn secondary" disabled>Pobierz POR</button>
         <button id="downloadRaw" class="btn secondary tertiary" disabled>Pobierz RAW</button>
-        <span id="status" class="status" aria-live="polite"></span>
       </div>
 
 
       <div id="progressContainer" class="progress-wrap" style="display: none;">
-        <div class="progress-label">Postęp analizy: <span id="progressText">0%</span></div>
+        <div class="progress-header">
+          <div class="progress-label">Postęp: <span id="progressText">0%</span></div>
+          <span id="status" class="status" aria-live="polite"></span>
+        </div>
         <div class="progress-bar">
           <div id="progressFill"></div>
         </div>

@@ -282,12 +282,35 @@ async function runAnalysis() {
         onProgress: (p) => {
           if (p?.stage) {
             setStatus(`REF: ${p.stage}${p.detail ? ` — ${p.detail}` : ''}`);
-            const stages = { 'Loudness': 0.1, 'Loudness (frames)': 0.2, 'TruePeak': 0.4, 'Meyda': 0.6, 'HPSS': 0.8, 'Sections': 0.9 };
-            const stageBase = stages[p.stage] || 0;
-            let subPct = 0;
-            if (p.detail && p.detail.includes('%')) subPct = parseInt(p.detail) / 100;
+            const stages = {
+              'Loudness': 0.0,
+              'Loudness (frames)': 0.1,
+              'TruePeak': 0.2,
+              'Meyda': 0.4,
+              'HPSS': 0.7,
+              'Sections': 0.95
+            };
+            const stageWeights = {
+              'Loudness': 0.1,
+              'Loudness (frames)': 0.1,
+              'TruePeak': 0.2,
+              'Meyda': 0.3,
+              'HPSS': 0.25,
+              'Sections': 0.05
+            };
 
-            const currentProgress = startPctB + basePctB * (stageBase + subPct * 0.1);
+            const stageBase = stages[p.stage] ?? 0;
+            const stageWeight = stageWeights[p.stage] ?? 0;
+            let subPct = 0;
+            if (p.detail) {
+              if (p.detail.includes('%')) {
+                subPct = parseInt(p.detail) / 100;
+              } else if (/^\d+$/.test(p.detail)) {
+                subPct = Math.min(0.9, parseInt(p.detail) / 5000);
+              }
+            }
+
+            const currentProgress = startPctB + basePctB * (stageBase + subPct * stageWeight);
             updateProgress(currentProgress, `REF: ${p.stage}`);
           }
         },
