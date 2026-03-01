@@ -129,3 +129,55 @@ export function cleanObjectForJson(obj) {
 
   return obj;
 }
+
+/**
+ * Compute statistics (mean, std, p05, p95) for an array of numbers or an array of vectors.
+ * @param {Array<number|number[]>} frames
+ * @returns {Object}
+ */
+export function computeStats(frames) {
+  if (!Array.isArray(frames) || frames.length === 0) return null;
+
+  const isVector = Array.isArray(frames[0]);
+  const n = frames.length;
+
+  if (isVector) {
+    const dim = frames[0].length;
+    const means = new Array(dim).fill(0);
+    const m2s = new Array(dim).fill(0);
+    const p05s = new Array(dim).fill(0);
+    const p95s = new Array(dim).fill(0);
+
+    for (let d = 0; d < dim; d++) {
+      const col = frames.map(f => f[d]).sort((a, b) => a - b);
+      let sum = 0;
+      for (const v of col) sum += v;
+      const avg = sum / n;
+      means[d] = avg;
+
+      let varianceSum = 0;
+      for (const v of col) varianceSum += (v - avg) ** 2;
+      m2s[d] = Math.sqrt(varianceSum / n);
+
+      p05s[d] = col[Math.floor(n * 0.05)];
+      p95s[d] = col[Math.floor(n * 0.95)];
+    }
+
+    return { mean: means, std: m2s, p05: p05s, p95: p95s };
+  } else {
+    const sorted = [...frames].sort((a, b) => a - b);
+    let sum = 0;
+    for (const v of sorted) sum += v;
+    const avg = sum / n;
+
+    let varianceSum = 0;
+    for (const v of sorted) varianceSum += (v - avg) ** 2;
+
+    return {
+      mean: avg,
+      std: Math.sqrt(varianceSum / n),
+      p05: sorted[Math.floor(n * 0.05)],
+      p95: sorted[Math.floor(n * 0.95)]
+    };
+  }
+}

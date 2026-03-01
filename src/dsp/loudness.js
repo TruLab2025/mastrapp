@@ -241,7 +241,7 @@ export async function analyzeLoudnessOverTime(left, right, sampleRate, onProgres
 
   for (let idx = 0, center = winM; center <= n; idx++, center += hop) {
     if (idx % 250 === 0) {
-      onProgress?.({ stage: 'Loudness', detail: `${idx}` });
+      onProgress?.({ stage: 'Loudness (frames)', detail: `${idx}` });
       await new Promise((r) => setTimeout(r, 0));
     }
 

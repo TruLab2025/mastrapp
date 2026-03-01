@@ -30,17 +30,16 @@ function medianFilter1D(data, kernel_size = 5) {
 }
 
 /**
- * Apply median filter to 2D spectrogram (along time axis for harmonic, freq axis for percussive).
+ * Apply median filter to 2D spectrogram (async with yields).
  * @param {Array<Array<number>>} spectrogram [frame][freq_bin]
  * @param {string} axis 'time' or 'freq'
  * @param {number} kernel_size
- * @returns {Array<Array<number>>}
+ * @returns {Promise<Array<Array<number>>>}
  */
-function medianFilterSpectrogram(spectrogram, axis = 'time', kernel_size = 5) {
+async function medianFilterSpectrogramAsync(spectrogram, axis = 'time', kernel_size = 5) {
   const result = spectrogram.map(frame => [...frame]);
 
   if (axis === 'time') {
-    // Filter along time axis for each frequency
     const nFreq = spectrogram[0].length;
     for (let freq = 0; freq < nFreq; freq++) {
       const timeSlice = spectrogram.map(frame => frame[freq]);
@@ -48,11 +47,12 @@ function medianFilterSpectrogram(spectrogram, axis = 'time', kernel_size = 5) {
       for (let t = 0; t < spectrogram.length; t++) {
         result[t][freq] = filtered[t];
       }
+      if (freq % 100 === 0) await new Promise(r => setTimeout(r, 0));
     }
   } else if (axis === 'freq') {
-    // Filter along frequency axis for each time frame
     for (let t = 0; t < spectrogram.length; t++) {
       result[t] = medianFilter1D(spectrogram[t], kernel_size);
+      if (t % 200 === 0) await new Promise(r => setTimeout(r, 0));
     }
   }
   return result;
@@ -62,10 +62,10 @@ function medianFilterSpectrogram(spectrogram, axis = 'time', kernel_size = 5) {
  * HPSS: separate spectrogram into harmonic and percussive.
  * @param {Float32Array} buffer
  * @param {number} sampleRate
- * @param {{frameSize?: number, hopSize?: number}} options
- * @returns {{harmonic_ratio: number, percussive_ratio: number, harmonic_frames: Array, percussive_frames: Array}}
+ * @param {{frameSize?: number, hopSize?: number, onProgress?: (p: any)=>void}} options
+ * @returns {Promise<Object>}
  */
-export function analyzeHarmonicPercussive(buffer, sampleRate, options = {}) {
+export async function analyzeHarmonicPercussive(buffer, sampleRate, options = {}) {
   const frameSize = options.frameSize || 2048;
   const hopSize = options.hopSize || frameSize / 2;
   const harmonicKernelSize = 5; // median kernel for time axis
@@ -81,6 +81,7 @@ export function analyzeHarmonicPercussive(buffer, sampleRate, options = {}) {
     const { re, im } = fftReal(frame);
     const mag = magSpectrum(re, im);
     spectrogram.push(Array.from(mag));
+    if (i % (hopSize * 200) === 0) await new Promise(r => setTimeout(r, 0));
   }
 
   if (spectrogram.length === 0) {
@@ -88,10 +89,13 @@ export function analyzeHarmonicPercussive(buffer, sampleRate, options = {}) {
   }
 
   // Harmonic: median filter along time axis
-  const harmonicSpec = medianFilterSpectrogram(spectrogram, 'time', harmonicKernelSize);
+  options.onProgress?.({ stage: 'HPSS', detail: 'harmonic medfilt' });
+  const harmonicSpec = await medianFilterSpectrogramAsync(spectrogram, 'time', harmonicKernelSize);
 
   // Percussive: median filter along frequency axis
-  const percussiveSpec = medianFilterSpectrogram(spectrogram, 'freq', percussiveKernelSize);
+  options.onProgress?.({ stage: 'HPSS', detail: 'percussive medfilt' });
+  const percussiveSpec = await medianFilterSpectrogramAsync(spectrogram, 'freq', percussiveKernelSize);
+  options.onProgress?.({ stage: 'HPSS', detail: 'energy summing' });
 
   // Compute energy per frame
   let totalHarmonicEnergy = 0;

@@ -211,7 +211,9 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
   options.onProgress?.({ stage: 'Meyda' });
   let meyda = null;
   try {
-    meyda = analyzeMeydaFeatures(left, right, sampleRate, { frameSize, hopSize });
+    // Yield before heavy Meyda
+    await new Promise(r => setTimeout(r, 0));
+    meyda = await analyzeMeydaFeatures(left, right, sampleRate, { frameSize, hopSize, onProgress: options.onProgress });
   } catch (e) {
     meyda = { error: String(e) };
   }
@@ -240,6 +242,8 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
       bandSum += lm.bandEnergy;
       totalSum += lm.totalEnergy;
       count++;
+      // Yield every 50 frames to keep UI responsive
+      if (count % 50 === 0) await new Promise(r => setTimeout(r, 0));
     }
     if (count > 0) {
       const frac = totalSum > 0 ? bandSum / totalSum : 0;
@@ -260,7 +264,9 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
   options.onProgress?.({ stage: 'HPSS' });
   let hpss = null;
   try {
-    hpss = analyzeHarmonicPercussive(monoMix, sampleRate, { frameSize, hopSize });
+    // Yield before heavy HPSS
+    await new Promise(r => setTimeout(r, 0));
+    hpss = await analyzeHarmonicPercussive(monoMix, sampleRate, { frameSize, hopSize, onProgress: options.onProgress });
   } catch (e) {
     hpss = { error: String(e) };
   }
@@ -464,23 +470,12 @@ export async function analyzeAudioBuffer(audioBuffer, options) {
       sections: sections,
     },
     timeSeries: {
-      spectrumFrames: spectrum.frames,
-      psychoFrames: spectrum.psychoFrames,
       loudnessFrames: loudness.frames,
       truePeakFrames: truePeak.frames,
       stereoFrames: truePeak.stereoFrames,
+      spectralCentroid: spectrum.frames.map(f => ({ tSec: f.tSec, centroidHz: f.centroidHz })),
+      lowMidSeries: lowMidSeries,
       onsetTimesSec: onsets.onsetsSec,
-      onsetStrength: onsetStrength.perOnset,
-      onsetMeta: {
-        method: 'band-flux peak-picking',
-        threshold: onsets.threshold,
-      },
-      onsetStrengthMeta: onsetStrength.meta,
-      rhythm: rhythm,
-      smi,
-      meyda,
-      spectralAdvanced: spectralAdv,
-      hpss,
     },
   });
 }

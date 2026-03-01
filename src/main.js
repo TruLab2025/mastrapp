@@ -100,14 +100,14 @@ function makeUploadFriendlyResult(obj) {
   if (!obj || typeof obj !== 'object') return obj;
 
   // Comparison object: keep compare + trimmed A/B.
-  if (obj.type === 'comparison' || (obj.compare && obj.a && obj.b)) {
+  if (obj.compare && obj.a && obj.b) {
     return {
       meta: obj.meta,
+      global: obj.global,
       compare: obj.compare,
       a: makeUploadFriendlyResult(obj.a),
       b: makeUploadFriendlyResult(obj.b),
-      note: obj.note,
-      uploadFriendly: true,
+      note: 'Summary comparison for GPT analysis.',
     };
   }
 
@@ -115,46 +115,26 @@ function makeUploadFriendlyResult(obj) {
   const global = obj.global ?? {};
   const ts = obj.timeSeries ?? {};
 
-  const spectrumFrames = Array.isArray(ts.spectrumFrames) ? ts.spectrumFrames : [];
-  const psychoFrames = Array.isArray(ts.psychoFrames) ? ts.psychoFrames : [];
+  // Essential timelines per user request: loudness, stereo width, spectral centroid
   const loudnessFrames = Array.isArray(ts.loudnessFrames) ? ts.loudnessFrames : [];
-  const truePeakFrames = Array.isArray(ts.truePeakFrames) ? ts.truePeakFrames : [];
   const stereoFrames = Array.isArray(ts.stereoFrames) ? ts.stereoFrames : [];
-  const onsets = Array.isArray(ts.onsetTimesSec) ? ts.onsetTimesSec : [];
-  const onsetStrength = Array.isArray(ts.onsetStrength) ? ts.onsetStrength : [];
+  const spectralCentroid = Array.isArray(ts.spectralCentroid) ? ts.spectralCentroid :
+    (Array.isArray(ts.spectrumFrames) ? ts.spectrumFrames.map(f => ({ tSec: f.tSec, centroidHz: f.centroidHz })) : []);
 
-  const spectrumSample = pickEvery(spectrumFrames, 600).map(makeUploadFriendlySpectrumFrame);
-  const psychoSample = pickEvery(psychoFrames, 900);
-  const loudnessSample = pickEvery(loudnessFrames, 900);
-  const truePeakSample = pickEvery(truePeakFrames, 900);
-  const stereoSample = pickEvery(stereoFrames, 900);
-  const onsetsSample = pickEvery(onsets, 800);
+  // Sample them to further reduce size
+  const loudnessSample = pickEvery(loudnessFrames, 500);
+  const stereoSample = pickEvery(stereoFrames, 500);
+  const centroidSample = pickEvery(spectralCentroid, 500);
 
   return {
     meta,
     global,
     timeSeries: {
-      spectrumFrames: spectrumSample,
-      psychoFrames: psychoSample,
       loudnessFrames: loudnessSample,
-      truePeakFrames: truePeakSample,
       stereoFrames: stereoSample,
-      onsetTimesSec: onsetsSample,
-      // keep onsetStrength aligned only if lengths match after sampling; otherwise drop it
-      ...(onsetStrength.length === onsets.length
-        ? { onsetStrength: pickEvery(onsetStrength, 800) }
-        : null),
-      onsetMeta: ts.onsetMeta,
-      onsetStrengthMeta: ts.onsetStrengthMeta,
-      timeSeriesMeta: {
-        uploadFriendly: true,
-        spectrumFrames: { total: spectrumFrames.length, kept: spectrumSample.length, keptFields: ['tSec', 'centroidHz', 'rolloffHz', 'flatness', 'spectralFlux', 'hfc', 'bandNormalized.low/mid/high'] },
-        psychoFrames: { total: psychoFrames.length, kept: psychoSample.length, keptFields: ['tSec', 'sharpness', 'spectralContrastDb', 'boominessIndex', 'harshnessIndex', 'sibilanceIndex'] },
-        loudnessFrames: { total: loudnessFrames.length, kept: loudnessSample.length },
-        truePeakFrames: { total: truePeakFrames.length, kept: truePeakSample.length },
-        stereoFrames: { total: stereoFrames.length, kept: stereoSample.length },
-        onsetTimesSec: { total: onsets.length, kept: onsetsSample.length },
-      },
+      spectralCentroid: centroidSample,
+      onsetTimesSec: ts.onsetTimesSec, // Keep brief onset list
+      note: 'Aggregated report: most time-series removed or sampled to save space for GPT analysis.'
     },
   };
 }
@@ -355,19 +335,19 @@ fileInputB.addEventListener('change', () => {
 
 function wireDropzone(dropzone, which, input) {
   dropzone.addEventListener('dragover', (e) => {
-  e.preventDefault();
-  dropzone.classList.add('dragover');
+    e.preventDefault();
+    dropzone.classList.add('dragover');
   });
 
   dropzone.addEventListener('dragleave', () => {
-  dropzone.classList.remove('dragover');
+    dropzone.classList.remove('dragover');
   });
 
   dropzone.addEventListener('drop', (e) => {
-  e.preventDefault();
-  dropzone.classList.remove('dragover');
-  const file = e.dataTransfer?.files?.[0] ?? null;
-  if (!file) return;
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+    const file = e.dataTransfer?.files?.[0] ?? null;
+    if (!file) return;
     input.value = '';
     setFile(which, file);
   });

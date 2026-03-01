@@ -98,7 +98,7 @@ export async function analyzeTruePeakAndClipping(left, right, sampleRate, onProg
   const frac = [0.25, 0.5, 0.75];
 
   for (let end = block, frameIndex = 0; end <= n; end += block, frameIndex++) {
-    if (frameIndex % 200 === 0) {
+    if (frameIndex % 500 === 0) {
       onProgress?.({ stage: 'TruePeak', detail: `${frameIndex}` });
       await new Promise((r) => setTimeout(r, 0));
     }

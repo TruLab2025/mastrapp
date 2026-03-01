@@ -168,6 +168,11 @@ function renderSummaryLike(root, summary) {
   const pairs = [
     ['Sample rate', sr ? `${sr} Hz` : '—'],
     ['Duration', typeof dur === 'number' ? `${fmt(dur, 2)} s` : '—'],
+    ['Tempo', (() => {
+      const t = safeGet(summary, 'global.rhythm');
+      if (!t || t.tempoConfidence < 0.25) return '—';
+      return `${fmt(t.tempoBpm, 0)} BPM${t.tempoConfidence < 0.4 ? ' (niepewne)' : ''}`;
+    })()],
     ['RMS (global)', typeof global.rmsDbfs === 'number' ? `${fmt(global.rmsDbfs, 2)} dBFS` : '—'],
     ['Integrated LUFS', typeof global.integratedLufs === 'number' ? `${fmt(global.integratedLufs, 2)} LUFS` : '—'],
     ['True Peak (approx)', typeof global.truePeakDbtp === 'number' ? `${fmt(global.truePeakDbtp, 2)} dBTP` : '—'],
@@ -340,6 +345,11 @@ function renderFullLike(root, result) {
   const pairs = [
     ['Sample rate', sr ? `${sr} Hz` : '—'],
     ['Duration', typeof dur === 'number' ? `${fmt(dur, 2)} s` : '—'],
+    ['Tempo', (() => {
+      const t = safeGet(result, 'global.rhythm');
+      if (!t || t.tempoConfidence < 0.25) return '—';
+      return `${fmt(t.tempoBpm, 0)} BPM${t.tempoConfidence < 0.4 ? ' (niepewne)' : ''}`;
+    })()],
     ['RMS (global)', typeof global.rms === 'number' ? `${fmt(global.rms, 6)} (${fmt(global.rmsDbfs, 2)} dBFS)` : (typeof global.rmsDbfs === 'number' ? `${fmt(global.rmsDbfs, 2)} dBFS` : '—')],
     ['Integrated LUFS', typeof global.integratedLufs === 'number' ? `${fmt(global.integratedLufs, 2)} LUFS` : '—'],
     ['True Peak (approx)', typeof global.truePeakDbtp === 'number' ? `${fmt(global.truePeakDbtp, 2)} dBTP` : '—'],
