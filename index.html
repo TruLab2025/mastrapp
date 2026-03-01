@@ -1,96 +1,104 @@
 <!doctype html>
 <html lang="pl">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Audio Metrics App</title>
-    <link rel="stylesheet" href="./src/styles.css" />
-  </head>
-  <body>
-    <main class="app">
-      <header class="header">
-        <h1>Audio Metrics App</h1>
-        <p class="sub">
-          Przeciągnij bounce (WAV/AIFF/MP3).
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Audio Metrics App</title>
+  <link rel="stylesheet" href="./src/styles.css" />
+</head>
+
+<body>
+  <main class="app">
+    <header class="header">
+      <h1>Audio Metrics App</h1>
+      <p class="sub">
+        Przeciągnij bounce (WAV/AIFF/MP3).
+      </p>
+    </header>
+
+    <section class="card">
+      <div class="dropgrid">
+        <div>
+          <div class="drop-label">Analizowany (ORG)</div>
+          <div id="dropzoneA" class="dropzone" role="button" tabindex="0" aria-label="Upuść plik audio (analizowany)">
+            <div>
+              <div class="drop-title">Przeciągnij i upuść plik</div>
+              <div id="fileNameA" class="drop-hint">albo wybierz z dysku</div>
+            </div>
+            <input id="fileInputA" class="file" type="file" accept="audio/*,.wav,.aiff,.aif,.mp3,.m4a" />
+          </div>
+        </div>
+
+        <div>
+          <div class="drop-label">Referencja (REF)</div>
+          <div id="dropzoneB" class="dropzone" role="button" tabindex="0" aria-label="Upuść plik audio (referencja)">
+            <div>
+              <div class="drop-title">Przeciągnij i upuść plik</div>
+              <div id="fileNameB" class="drop-hint">(opcjonalnie) utwór referencyjny</div>
+            </div>
+            <input id="fileInputB" class="file" type="file" accept="audio/*,.wav,.aiff,.aif,.mp3,.m4a" />
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <button id="analyzeBtn" class="btn" disabled>Analizuj</button>
+        <button id="resetBtn" class="btn secondary" type="button">Reset</button>
+        <button id="copyBtn" class="btn secondary" disabled>Kopiuj JSON</button>
+        <button id="downloadA" class="btn secondary" disabled>Pobierz ORG</button>
+        <button id="downloadB" class="btn secondary" disabled>Pobierz REF</button>
+        <button id="downloadCompare" class="btn secondary" disabled>Pobierz POR</button>
+        <span id="status" class="status" aria-live="polite"></span>
+      </div>
+
+      <div class="row">
+        <button id="downloadRaw" class="btn secondary tertiary" disabled>Pobierz RAW JSON (Pełny)</button>
+      </div>
+
+      <div id="progressContainer" class="progress-wrap" style="display: none;">
+        <div class="progress-label">Postęp analizy: <span id="progressText">0%</span></div>
+        <div class="progress-bar">
+          <div id="progressFill"></div>
+        </div>
+      </div>
+
+      <details class="details">
+        <summary>Ustawienia (zaawansowane)</summary>
+        <div class="grid">
+          <label>
+            Frame (ms)
+            <input id="frameMs" type="number" min="10" max="100" step="1" value="46" />
+          </label>
+          <label>
+            Hop (ms)
+            <input id="hopMs" type="number" min="5" max="50" step="1" value="10" />
+          </label>
+          <label>
+            Rolloff (%)
+            <input id="rolloff" type="number" min="50" max="99" step="1" value="85" />
+          </label>
+        </div>
+        <p class="note">
+          LUFS liczone w przybliżeniu (K-weighting z biquadów RBJ). Do porównań między bounce’ami sprawdza się dobrze,
+          ale jeśli potrzebujesz zgodności 1:1 z EBU R128, daj znać — dopracujemy filtr i bramkowanie.
         </p>
-      </header>
 
-      <section class="card">
-        <div class="dropgrid">
-          <div>
-            <div class="drop-label">Analizowany (ORG)</div>
-            <div id="dropzoneA" class="dropzone" role="button" tabindex="0" aria-label="Upuść plik audio (analizowany)">
-              <div>
-                <div class="drop-title">Przeciągnij i upuść plik</div>
-                <div id="fileNameA" class="drop-hint">albo wybierz z dysku</div>
-              </div>
-              <input id="fileInputA" class="file" type="file" accept="audio/*,.wav,.aiff,.aif,.mp3,.m4a" />
-            </div>
-          </div>
+      </details>
+    </section>
 
-          <div>
-            <div class="drop-label">Referencja (REF)</div>
-            <div id="dropzoneB" class="dropzone" role="button" tabindex="0" aria-label="Upuść plik audio (referencja)">
-              <div>
-                <div class="drop-title">Przeciągnij i upuść plik</div>
-                <div id="fileNameB" class="drop-hint">(opcjonalnie) utwór referencyjny</div>
-              </div>
-              <input id="fileInputB" class="file" type="file" accept="audio/*,.wav,.aiff,.aif,.mp3,.m4a" />
-            </div>
-          </div>
-        </div>
+    <section class="card">
+      <h2>Wynik</h2>
+      <div id="view" class="view" aria-live="polite"></div>
+      <textarea id="output" class="output" spellcheck="false" placeholder="Tu pojawi się JSON z metrykami…"></textarea>
+    </section>
 
-        <div class="row">
-          <button id="analyzeBtn" class="btn" disabled>Analizuj</button>
-          <button id="resetBtn" class="btn secondary" type="button">Reset</button>
-          <button id="copyBtn" class="btn secondary" disabled>Kopiuj JSON</button>
-          <button id="downloadA" class="btn secondary" disabled>Pobierz ORG</button>
-          <button id="downloadB" class="btn secondary" disabled>Pobierz REF</button>
-          <button id="downloadCompare" class="btn secondary" disabled>Pobierz POR</button>
-          <span id="status" class="status" aria-live="polite"></span>
-        </div>
+    <footer class="footer">
+      <span>Tip: eksportuj WAV/AIFF, unikniesz różnic z dekodowaniem MP3/AAC.</span>
+    </footer>
+  </main>
 
-        <div class="row">
-          <button id="downloadAUpload" class="btn secondary tertiary" disabled>Pobierz ORG (RAW FULL)</button>
-          <button id="downloadBUpload" class="btn secondary tertiary" disabled>Pobierz REF (RAW FULL)</button>
-          <button id="downloadCompareUpload" class="btn secondary tertiary" disabled>Pobierz POR (RAW FULL)</button>
-        </div>
+  <script type="module" src="./src/main.js"></script>
+</body>
 
-        <details class="details">
-          <summary>Ustawienia (zaawansowane)</summary>
-          <div class="grid">
-            <label>
-              Frame (ms)
-              <input id="frameMs" type="number" min="10" max="100" step="1" value="46" />
-            </label>
-            <label>
-              Hop (ms)
-              <input id="hopMs" type="number" min="5" max="50" step="1" value="10" />
-            </label>
-            <label>
-              Rolloff (%)
-              <input id="rolloff" type="number" min="50" max="99" step="1" value="85" />
-            </label>
-          </div>
-          <p class="note">
-            LUFS liczone w przybliżeniu (K-weighting z biquadów RBJ). Do porównań między bounce’ami sprawdza się dobrze,
-            ale jeśli potrzebujesz zgodności 1:1 z EBU R128, daj znać — dopracujemy filtr i bramkowanie.
-          </p>
-
-        </details>
-      </section>
-
-      <section class="card">
-        <h2>Wynik</h2>
-        <div id="view" class="view" aria-live="polite"></div>
-        <textarea id="output" class="output" spellcheck="false" placeholder="Tu pojawi się JSON z metrykami…"></textarea>
-      </section>
-
-      <footer class="footer">
-        <span>Tip: eksportuj WAV/AIFF, unikniesz różnic z dekodowaniem MP3/AAC.</span>
-      </footer>
-    </main>
-
-    <script type="module" src="./src/main.js"></script>
-  </body>
 </html>

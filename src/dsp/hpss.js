@@ -47,12 +47,12 @@ async function medianFilterSpectrogramAsync(spectrogram, axis = 'time', kernel_s
       for (let t = 0; t < spectrogram.length; t++) {
         result[t][freq] = filtered[t];
       }
-      if (freq % 100 === 0) await new Promise(r => setTimeout(r, 0));
+      if (freq % 50 === 0) await new Promise(r => setTimeout(r, 0));
     }
   } else if (axis === 'freq') {
     for (let t = 0; t < spectrogram.length; t++) {
       result[t] = medianFilter1D(spectrogram[t], kernel_size);
-      if (t % 200 === 0) await new Promise(r => setTimeout(r, 0));
+      if (t % 100 === 0) await new Promise(r => setTimeout(r, 0));
     }
   }
   return result;
@@ -81,7 +81,7 @@ export async function analyzeHarmonicPercussive(buffer, sampleRate, options = {}
     const { re, im } = fftReal(frame);
     const mag = magSpectrum(re, im);
     spectrogram.push(Array.from(mag));
-    if (i % (hopSize * 200) === 0) await new Promise(r => setTimeout(r, 0));
+    if (i % (hopSize * 100) === 0) await new Promise(r => setTimeout(r, 0));
   }
 
   if (spectrogram.length === 0) {

@@ -13,12 +13,10 @@ const fileNameB = document.getElementById('fileNameB');
 const analyzeBtn = document.getElementById('analyzeBtn');
 const resetBtn = document.getElementById('resetBtn');
 const copyBtn = document.getElementById('copyBtn');
-const downloadA = document.getElementById('downloadA');
-const downloadB = document.getElementById('downloadB');
-const downloadCompare = document.getElementById('downloadCompare');
-const downloadAUpload = document.getElementById('downloadAUpload');
-const downloadBUpload = document.getElementById('downloadBUpload');
-const downloadCompareUpload = document.getElementById('downloadCompareUpload');
+const downloadRaw = document.getElementById('downloadRaw');
+const progressContainer = document.getElementById('progressContainer');
+const progressFill = document.getElementById('progressFill');
+const progressText = document.getElementById('progressText');
 const statusEl = document.getElementById('status');
 const outputEl = document.getElementById('output');
 const viewEl = document.getElementById('view');
@@ -43,6 +41,17 @@ let summaryOut = null;
 
 function setStatus(text) {
   statusEl.textContent = text;
+}
+
+function updateProgress(pct, text = '') {
+  if (pct === null) {
+    progressContainer.style.display = 'none';
+    return;
+  }
+  progressContainer.style.display = 'block';
+  const p = Math.max(0, Math.min(100, pct));
+  progressFill.style.width = `${p}%`;
+  progressText.textContent = `${Math.round(p)}% ${text ? `— ${text}` : ''}`;
 }
 
 function setOutput(obj) {
@@ -144,15 +153,14 @@ function resetResults() {
   downloadA.disabled = true;
   downloadB.disabled = true;
   downloadCompare.disabled = true;
-  if (downloadAUpload) downloadAUpload.disabled = true;
-  if (downloadBUpload) downloadBUpload.disabled = true;
-  if (downloadCompareUpload) downloadCompareUpload.disabled = true;
+  downloadRaw.disabled = true;
   outputEl.value = '';
   if (viewEl) viewEl.replaceChildren();
   fullA = null;
   fullB = null;
   fullCompare = null;
   summaryOut = null;
+  updateProgress(null);
 }
 
 function refreshUiState() {
@@ -202,35 +210,64 @@ async function runAnalysis() {
   downloadA.disabled = true;
   downloadB.disabled = true;
   downloadCompare.disabled = true;
-  if (downloadAUpload) downloadAUpload.disabled = true;
-  if (downloadBUpload) downloadBUpload.disabled = true;
-  if (downloadCompareUpload) downloadCompareUpload.disabled = true;
+  downloadRaw.disabled = true;
   setStatus('Dekoduję audio…');
+  updateProgress(5, 'Dekodowanie ORG...');
 
   try {
     const settings = readSettings();
 
     const bufA = await decodeFileToAudioBuffer(fileA);
     setStatus('Analizuję ORG…');
+
+    // Weighting for ORG analysis (approx 45% of total if B exists, 90% if not)
+    const basePct = fileB ? 45 : 90;
+    const startPct = 10;
+
     fullA = await analyzeAudioBuffer(bufA, {
       ...settings,
       onProgress: (p) => {
-        if (p?.stage) setStatus(`ORG: ${p.stage}${p.detail ? ` — ${p.detail}` : ''}`);
+        if (p?.stage) {
+          setStatus(`ORG: ${p.stage}${p.detail ? ` — ${p.detail}` : ''}`);
+          // Map stages to progress
+          const stages = { 'Loudness': 0.1, 'Loudness (frames)': 0.2, 'TruePeak': 0.4, 'Meyda': 0.6, 'HPSS': 0.8, 'Sections': 0.9 };
+          const stageBase = stages[p.stage] || 0;
+          let subPct = 0;
+          if (p.detail && p.detail.includes('%')) subPct = parseInt(p.detail) / 100;
+
+          const currentProgress = startPct + basePct * (stageBase + subPct * 0.1);
+          updateProgress(currentProgress, `ORG: ${p.stage}`);
+        }
       },
     });
     fullA.meta = { ...(fullA.meta ?? {}), fileHint: fileA.name };
 
     if (fileB) {
+      updateProgress(55, 'Dekodowanie REF...');
       const bufB = await decodeFileToAudioBuffer(fileB);
       setStatus('Analizuję REF…');
+
+      const startPctB = 60;
+      const basePctB = 35;
+
       fullB = await analyzeAudioBuffer(bufB, {
         ...settings,
         onProgress: (p) => {
-          if (p?.stage) setStatus(`REF: ${p.stage}${p.detail ? ` — ${p.detail}` : ''}`);
+          if (p?.stage) {
+            setStatus(`REF: ${p.stage}${p.detail ? ` — ${p.detail}` : ''}`);
+            const stages = { 'Loudness': 0.1, 'Loudness (frames)': 0.2, 'TruePeak': 0.4, 'Meyda': 0.6, 'HPSS': 0.8, 'Sections': 0.9 };
+            const stageBase = stages[p.stage] || 0;
+            let subPct = 0;
+            if (p.detail && p.detail.includes('%')) subPct = parseInt(p.detail) / 100;
+
+            const currentProgress = startPctB + basePctB * (stageBase + subPct * 0.1);
+            updateProgress(currentProgress, `REF: ${p.stage}`);
+          }
         },
       });
       fullB.meta = { ...(fullB.meta ?? {}), fileHint: fileB.name };
 
+      updateProgress(95, 'Finalizacja porównania...');
       fullCompare = makeFullComparison(fullA, fullB);
       const sumA = makeGptSummary(fullA);
       const sumB = makeGptSummary(fullB);
@@ -239,20 +276,23 @@ async function runAnalysis() {
 
       downloadCompare.disabled = false;
       downloadB.disabled = false;
-      if (downloadCompareUpload) downloadCompareUpload.disabled = false;
-      if (downloadBUpload) downloadBUpload.disabled = false;
     } else {
+      updateProgress(95, 'Finalizacja...');
       summaryOut = makeGptSummary(fullA);
       setOutput(summaryOut);
     }
 
+    updateProgress(100, 'Zakończono');
+    setTimeout(() => updateProgress(null), 3000);
+
     copyBtn.disabled = false;
     downloadA.disabled = false;
-    if (downloadAUpload) downloadAUpload.disabled = false;
+    downloadRaw.disabled = false;
     setStatus('Gotowe.');
   } catch (err) {
     console.error(err);
     setStatus(`Błąd: ${err?.message ?? String(err)}`);
+    updateProgress(null);
   } finally {
     refreshUiState();
   }
@@ -295,29 +335,18 @@ downloadCompare.addEventListener('click', () => {
   setStatus('Pobrano Porównanie (kompakt).');
 });
 
-downloadAUpload?.addEventListener('click', () => {
-  if (!fullA) return;
-  const base = fileA?.name ? fileA.name.replace(/\.[^.]+$/, '') : 'trackA';
+downloadRaw.addEventListener('click', () => {
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
-  downloadJson(fullA, `${base}.metrics.full.${ts}.json`);
-  setStatus('Pobrano Oryginał (RAW FULL — duże).');
-});
-
-downloadBUpload?.addEventListener('click', () => {
-  if (!fullB) return;
-  const base = fileB?.name ? fileB.name.replace(/\.[^.]+$/, '') : 'reference';
-  const ts = new Date().toISOString().replace(/[:.]/g, '-');
-  downloadJson(fullB, `${base}.metrics.full.${ts}.json`);
-  setStatus('Pobrano Referencję (RAW FULL — duże).');
-});
-
-downloadCompareUpload?.addEventListener('click', () => {
-  if (!fullCompare) return;
-  const baseA = fileA?.name ? fileA.name.replace(/\.[^.]+$/, '') : 'ORG';
-  const baseB = fileB?.name ? fileB.name.replace(/\.[^.]+$/, '') : 'REF';
-  const ts = new Date().toISOString().replace(/[:.]/g, '-');
-  downloadJson(fullCompare, `${baseA}_vs_${baseB}.comparison.full.${ts}.json`);
-  setStatus('Pobrano Porównanie (RAW FULL — duże).');
+  if (fullCompare) {
+    const baseA = fileA?.name ? fileA.name.replace(/\.[^.]+$/, '') : 'ORG';
+    const baseB = fileB?.name ? fileB.name.replace(/\.[^.]+$/, '') : 'REF';
+    downloadJson(fullCompare, `${baseA}_vs_${baseB}.raw-full.${ts}.json`);
+    setStatus('Pobrano Porównanie (RAW FULL).');
+  } else if (fullA) {
+    const base = fileA?.name ? fileA.name.replace(/\.[^.]+$/, '') : 'trackA';
+    downloadJson(fullA, `${base}.raw-full.${ts}.json`);
+    setStatus('Pobrano Oryginał (RAW FULL).');
+  }
 });
 
 resetBtn?.addEventListener('click', resetAll);

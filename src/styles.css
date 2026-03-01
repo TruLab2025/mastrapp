@@ -306,3 +306,44 @@ input[type="number"] {
     grid-template-columns: 1fr;
   }
 }
+.btn.secondary.tertiary {
+  border-color: #355070;
+  color: #b7c2d1;
+  font-size: 11px;
+  padding: 6px 10px;
+}
+
+.btn.secondary.tertiary:not(:disabled):hover {
+  border-color: #79a6ff;
+  color: #e8eef6;
+}
+
+.progress-wrap {
+  margin-top: 16px;
+  padding: 12px;
+  background: #0d1420;
+  border-radius: 10px;
+  border: 1px solid #1e2a3b;
+}
+
+.progress-label {
+  font-size: 12px;
+  color: #b7c2d1;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.progress-bar {
+  height: 6px;
+  background: #0b0f14;
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid #1e2a3b;
+}
+
+#progressFill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #79a6ff, #2b7);
+  transition: width 0.2s ease-out;
+}
