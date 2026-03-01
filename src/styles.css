@@ -348,6 +348,12 @@ input[type="number"] {
   font-size: 11px;
   color: #79a6ff;
   font-weight: 500;
+  min-width: 220px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .progress-bar {
